@@ -5,6 +5,8 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Threading.Tasks;
 using System.Linq;
+using System.IO;
+using System.Text.Json;
 
 namespace ManholeCardManager.ViewModels
 {
@@ -13,6 +15,9 @@ namespace ManholeCardManager.ViewModels
     /// </summary>
     public class DistributionLocationViewModel : INotifyPropertyChanged
     {
+        private const int DEFAULT_MAX_SERIES_NUMBER = 99;
+        private const string SERIES_SETTINGS_FILE_NAME = "series-settings.json";
+
         private readonly DatabaseService _databaseService;
         private readonly ImageCacheService _imageCacheService;
         private ObservableCollection<DistributionLocationWithCards> _locations;
@@ -172,13 +177,97 @@ namespace ManholeCardManager.ViewModels
         /// </summary>
         private async Task LoadSeriesNumbers()
         {
+            var maxSeriesNumber = await LoadMaxSeriesNumberAsync();
+
             SeriesNumbers.Clear();
             SeriesNumbers.Add(LocalizationService.Instance.GetString("AllSeries"));
-            for (int i = 1; i <= 27; i++)
+            for (int i = 1; i <= maxSeriesNumber; i++)
             {
                 SeriesNumbers.Add($"第{i}弾");
             }
-            await Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// 弾数設定ファイルから弾数の上限を読み込みます。
+        /// </summary>
+        /// <returns>有効な弾数上限。失敗時は既定値。</returns>
+        private static async Task<int> LoadMaxSeriesNumberAsync()
+        {
+            var settingsPath = GetSeriesSettingsPath();
+
+            try
+            {
+                if (!File.Exists(settingsPath))
+                {
+                    System.Diagnostics.Debug.WriteLine(
+                        $"Series settings file not found: {settingsPath}");
+                    return DEFAULT_MAX_SERIES_NUMBER;
+                }
+
+                var json = await File.ReadAllTextAsync(settingsPath);
+                var settings = JsonSerializer.Deserialize<SeriesSettings>(
+                    json,
+                    new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
+
+                if (settings?.MaxSeriesNumber > 0)
+                {
+                    return settings.MaxSeriesNumber;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"Failed to load series settings: {ex.Message}");
+            }
+
+            return DEFAULT_MAX_SERIES_NUMBER;
+        }
+
+        /// <summary>
+        /// 弾数設定ファイルの保存先パスを取得します。
+        /// </summary>
+        /// <returns>設定ファイルのフルパス。</returns>
+        private static string GetSeriesSettingsPath()
+        {
+            var candidates = new[]
+            {
+                Path.Combine(
+                    AppContext.BaseDirectory,
+                    SERIES_SETTINGS_FILE_NAME),
+                Path.Combine(
+                    AppContext.BaseDirectory,
+                    "ManholeCardManager",
+                    SERIES_SETTINGS_FILE_NAME),
+                Path.Combine(
+                    Directory.GetCurrentDirectory(),
+                    SERIES_SETTINGS_FILE_NAME)
+            };
+
+            foreach (var path in candidates)
+            {
+                if (File.Exists(path))
+                {
+                    System.Diagnostics.Debug.WriteLine(
+                        $"Using series settings: {path}");
+                    return path;
+                }
+            }
+
+            return candidates[0];
+        }
+
+        /// <summary>
+        /// 弾数設定モデル
+        /// </summary>
+        private sealed class SeriesSettings
+        {
+            /// <summary>
+            /// 弾数上限
+            /// </summary>
+            public int MaxSeriesNumber { get; set; }
         }
 
         /// <summary>
@@ -236,6 +325,42 @@ namespace ManholeCardManager.ViewModels
             {
                 IsLoading = false;
             }
+        }
+
+        /// <summary>
+        /// カードの取得ステータスを切り替える
+        /// </summary>
+        /// <param name="cardId">カードID</param>
+        /// <param name="locationId">取得場所ID</param>
+        public async Task ToggleCardAcquisitionAsync(int cardId, int locationId)
+        {
+            System.Diagnostics.Debug.WriteLine(
+                $"ToggleCardAcquisitionAsync: CardId={cardId}, LocationId={locationId}");
+                
+            var newStatus = await _databaseService.ToggleCardAcquisitionStatusAsync(cardId, locationId);
+            
+            System.Diagnostics.Debug.WriteLine(
+                $"ToggleCardAcquisitionAsync: New status from DB = {newStatus}");
+            
+            // 既存のカードオブジェクトを見つけて状態を更新
+            foreach (var location in Locations)
+            {
+                var card = location.DistributedCards.FirstOrDefault(c => c.CardId == cardId);
+                if (card != null)
+                {
+                    System.Diagnostics.Debug.WriteLine(
+                        $"ToggleCardAcquisitionAsync: Found card, current IsAcquired = {card.IsAcquired}");
+                        
+                    card.IsAcquired = newStatus;
+                    
+                    System.Diagnostics.Debug.WriteLine(
+                        $"ToggleCardAcquisitionAsync: Updated card {cardId} IsAcquired to {card.IsAcquired}");
+                    return;
+                }
+            }
+            
+            System.Diagnostics.Debug.WriteLine(
+                $"ToggleCardAcquisitionAsync: Card {cardId} not found in Locations");
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;

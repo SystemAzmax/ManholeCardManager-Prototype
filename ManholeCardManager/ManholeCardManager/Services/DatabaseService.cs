@@ -2,6 +2,7 @@ using ManholeCardManager.Models;
 using Microsoft.Data.Sqlite;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -126,6 +127,7 @@ namespace ManholeCardManager.Services
                 CREATE TABLE IF NOT EXISTS AcquisitionHistory (
                     HistoryId INTEGER PRIMARY KEY AUTOINCREMENT,
                     CardId INTEGER NOT NULL,
+                    IsAcquired INTEGER NOT NULL DEFAULT 1,
                     AcquisitionDate TEXT NOT NULL,
                     LocationId INTEGER,
                     Notes TEXT,
@@ -135,8 +137,81 @@ namespace ManholeCardManager.Services
 
             await createTablesCommand.ExecuteNonQueryAsync();
 
+            // 既存テーブルに IsAcquired カラムを追加（マイグレーション）
+            await MigrateAcquisitionHistoryTableAsync(connection);
+
             // データベースの状態をログ出力
             await LogDatabaseStatusAsync(connection);
+        }
+
+        /// <summary>
+        /// AcquisitionHistoryテーブルにIsAcquiredカラムを追加するマイグレーション
+        /// </summary>
+        private async Task MigrateAcquisitionHistoryTableAsync(SqliteConnection connection)
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine("Checking AcquisitionHistory table structure...");
+                
+                // カラムの存在確認
+                var checkColumnCommand = connection.CreateCommand();
+                checkColumnCommand.CommandText = "PRAGMA table_info(AcquisitionHistory)";
+                
+                bool hasIsAcquiredColumn = false;
+                var columnList = new System.Collections.Generic.List<string>();
+                
+                using (var reader = await checkColumnCommand.ExecuteReaderAsync())
+                {
+                    while (await reader.ReadAsync())
+                    {
+                        var columnName = reader.GetString(1); // name カラムはインデックス1
+                        columnList.Add(columnName);
+                        if (columnName == "IsAcquired")
+                        {
+                            hasIsAcquiredColumn = true;
+                        }
+                    }
+                }
+
+                System.Diagnostics.Debug.WriteLine($"Current columns: {string.Join(", ", columnList)}");
+
+                // カラムが存在しない場合は追加
+                if (!hasIsAcquiredColumn)
+                {
+                    System.Diagnostics.Debug.WriteLine("Migrating AcquisitionHistory table: Adding IsAcquired column");
+                    
+                    var alterTableCommand = connection.CreateCommand();
+                    alterTableCommand.CommandText = @"
+                        ALTER TABLE AcquisitionHistory 
+                        ADD COLUMN IsAcquired INTEGER NOT NULL DEFAULT 1;
+                    ";
+                    await alterTableCommand.ExecuteNonQueryAsync();
+                    
+                    System.Diagnostics.Debug.WriteLine("Migration completed successfully");
+                    
+                    // マイグレーション後のカラム一覧を再確認
+                    columnList.Clear();
+                    checkColumnCommand = connection.CreateCommand();
+                    checkColumnCommand.CommandText = "PRAGMA table_info(AcquisitionHistory)";
+                    using (var reader = await checkColumnCommand.ExecuteReaderAsync())
+                    {
+                        while (await reader.ReadAsync())
+                        {
+                            columnList.Add(reader.GetString(1));
+                        }
+                    }
+                    System.Diagnostics.Debug.WriteLine($"After migration columns: {string.Join(", ", columnList)}");
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("IsAcquired column already exists, skipping migration");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Migration error: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+            }
         }
 
         /// <summary>
@@ -604,21 +679,25 @@ namespace ManholeCardManager.Services
 
             var command = connection.CreateCommand();
             command.CommandText = @"
-                INSERT INTO AcquisitionHistory (CardId, AcquisitionDate, LocationId, Notes, CreatedDate)
-                VALUES (@cardId, @acquisitionDate, @locationId, @notes, @createdDate)
+                INSERT INTO AcquisitionHistory (CardId, IsAcquired, AcquisitionDate, LocationId, Notes, CreatedDate)
+                VALUES (@cardId, @isAcquired, @acquisitionDate, @locationId, @notes, @createdDate)
             ";
 
             command.Parameters.AddWithValue("@cardId", history.CardId);
-            command.Parameters.AddWithValue("@acquisitionDate", DateTimeOffset.Now.ToString("O"));
+            command.Parameters.AddWithValue("@isAcquired", history.IsAcquired ? 1 : 0);
+            command.Parameters.AddWithValue("@acquisitionDate", history.AcquisitionDate.ToString("O"));
             command.Parameters.AddWithValue("@locationId", (object?)history.LocationId ?? DBNull.Value);
             command.Parameters.AddWithValue("@notes", (object?)history.Notes ?? DBNull.Value);
-            command.Parameters.AddWithValue("@createdDate", DateTimeOffset.Now.ToString("O"));
+            command.Parameters.AddWithValue("@createdDate", history.CreatedDate.ToString("O"));
 
             await command.ExecuteNonQueryAsync();
+
+            System.Diagnostics.Debug.WriteLine(
+                $"InsertAcquisitionHistoryAsync: CardId={history.CardId}, IsAcquired={history.IsAcquired}");
         }
 
         /// <summary>
-        /// カードの取得履歴を取得
+        /// 取得履歴を読み込み
         /// </summary>
         public async Task<AcquisitionHistory?> GetAcquisitionHistoryAsync(int cardId)
         {
@@ -626,24 +705,77 @@ namespace ManholeCardManager.Services
             await connection.OpenAsync();
 
             var command = connection.CreateCommand();
-            command.CommandText = "SELECT * FROM AcquisitionHistory WHERE CardId = @cardId LIMIT 1";
+            command.CommandText = @"
+                SELECT HistoryId, CardId, IsAcquired, AcquisitionDate, LocationId, Notes, CreatedDate 
+                FROM AcquisitionHistory 
+                WHERE CardId = @cardId
+                ORDER BY CreatedDate DESC
+                LIMIT 1
+            ";
             command.Parameters.AddWithValue("@cardId", cardId);
 
-            using var reader = await command.ExecuteReaderAsync();
-            if (await reader.ReadAsync())
+            try
             {
-                return new AcquisitionHistory
+                using var reader = await command.ExecuteReaderAsync();
+                if (await reader.ReadAsync())
                 {
-                    HistoryId = reader.GetInt32(0),
-                    CardId = reader.GetInt32(1),
-                    AcquisitionDate = DateTimeOffset.Parse(reader.GetString(2)),
-                    LocationId = reader.IsDBNull(3) ? null : reader.GetInt32(3),
-                    Notes = reader.IsDBNull(4) ? null : reader.GetString(4),
-                    CreatedDate = DateTimeOffset.Parse(reader.GetString(5))
-                };
+                    return new AcquisitionHistory
+                    {
+                        HistoryId = reader.GetInt32(0),
+                        CardId = reader.GetInt32(1),
+                        IsAcquired = reader.GetInt32(2) == 1,
+                        AcquisitionDate = DateTimeOffset.Parse(reader.GetString(3)),
+                        LocationId = reader.IsDBNull(4) ? null : reader.GetInt32(4),
+                        Notes = reader.IsDBNull(5) ? null : reader.GetString(5),
+                        CreatedDate = DateTimeOffset.Parse(reader.GetString(6))
+                    };
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error reading AcquisitionHistory: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine("This might be due to missing IsAcquired column. Will return null.");
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// カードの取得ステータスを切り替える
+        /// </summary>
+        /// <param name="cardId">カードID</param>
+        /// <param name="locationId">取得場所ID（オプション）</param>
+        /// <returns>新しい取得ステータス</returns>
+        public async Task<bool> ToggleCardAcquisitionStatusAsync(int cardId, int? locationId = null)
+        {
+            using var connection = new SqliteConnection(GetConnectionString());
+            await connection.OpenAsync();
+
+            var existingHistory = await GetAcquisitionHistoryAsync(cardId);
+            bool newStatus;
+
+            if (existingHistory == null)
+            {
+                newStatus = true;
+            }
+            else
+            {
+                newStatus = !existingHistory.IsAcquired;
+            }
+
+            await InsertAcquisitionHistoryAsync(new AcquisitionHistory
+            {
+                CardId = cardId,
+                IsAcquired = newStatus,
+                AcquisitionDate = DateTimeOffset.Now,
+                LocationId = locationId ?? existingHistory?.LocationId,
+                CreatedDate = DateTimeOffset.Now
+            });
+
+            System.Diagnostics.Debug.WriteLine(
+                $"ToggleCardAcquisitionStatusAsync: CardId={cardId}, NewStatus={newStatus}");
+
+            return newStatus;
         }
 
         /// <summary>
@@ -670,17 +802,28 @@ namespace ManholeCardManager.Services
                     c.DesignImagePath, 
                     c.SeriesNumber,
                     c.IssuedDate,
-                    ah.CardId as HasAcquired
+                    COALESCE(latest_ah.IsAcquired, 0) as IsAcquired
                 FROM Locations l
                 INNER JOIN Cards c ON l.CardId = c.CardId
-                LEFT JOIN AcquisitionHistory ah ON c.CardId = ah.CardId
+                LEFT JOIN (
+                    SELECT CardId, IsAcquired
+                    FROM AcquisitionHistory
+                    WHERE (CardId, CreatedDate) IN (
+                        SELECT CardId, MAX(CreatedDate)
+                        FROM AcquisitionHistory
+                        GROUP BY CardId
+                    )
+                ) latest_ah ON c.CardId = latest_ah.CardId
                 ORDER BY l.LocationName, c.SeriesNumber
             ";
 
             using var reader = await command.ExecuteReaderAsync();
+            var cardCount = 0;
             while (await reader.ReadAsync())
             {
                 var locationId = reader.GetInt32(0);
+                var cardId = reader.GetInt32(7);
+                var isAcquired = reader.GetInt32(11) == 1;
 
                 if (!locations.ContainsKey(locationId))
                 {
@@ -691,14 +834,13 @@ namespace ManholeCardManager.Services
                         Address = reader.IsDBNull(2) ? null : reader.GetString(2),
                         Prefecture = reader.IsDBNull(3) ? null : reader.GetString(3),
                         Municipality = reader.IsDBNull(4) ? null : reader.GetString(4),
-                        Description = reader.IsDBNull(5) ? null : reader.GetString(5),
-                        DistributedCards = new System.Collections.ObjectModel.ObservableCollection<CardWithAcquisitionStatus>()
+                        Description = reader.IsDBNull(5) ? null : reader.GetString(5)
                     };
                 }
 
                 locations[locationId].DistributedCards.Add(new CardWithAcquisitionStatus
                 {
-                    CardId = reader.GetInt32(7),
+                    CardId = cardId,
                     DesignImagePath = reader.IsDBNull(8) ? null : reader.GetString(8),
                     SeriesNumber = reader.GetInt32(9),
                     IssuedDate = reader.IsDBNull(10) ? null : DateTimeOffset.Parse(reader.GetString(10)),
@@ -706,11 +848,17 @@ namespace ManholeCardManager.Services
                     Municipality = reader.IsDBNull(4) ? null : reader.GetString(4),
                     Description = reader.IsDBNull(5) ? null : reader.GetString(5),
                     StockStatus = reader.IsDBNull(6) ? null : reader.GetString(6),
-                    IsAcquired = !reader.IsDBNull(11)
+                    IsAcquired = isAcquired
                 });
+                
+                cardCount++;
+                System.Diagnostics.Debug.WriteLine(
+                    $"Loaded CardId={cardId}, LocationId={locationId}, IsAcquired={isAcquired}");
             }
 
-            System.Diagnostics.Debug.WriteLine($"Loaded {locations.Count} distribution locations from database");
+            System.Diagnostics.Debug.WriteLine(
+                $"GetAllDistributionLocationsWithCardsAsync: Loaded {locations.Count} locations with {cardCount} total cards");
+
             return locations.Values.ToList();
         }
 
@@ -726,7 +874,7 @@ namespace ManholeCardManager.Services
 
                 // データが既に存在する場合はスキップ
                 var checkCommand = connection.CreateCommand();
-                checkCommand.CommandText = "SELECT COUNT(*) FROM Cards";
+                checkCommand.CommandText = "SELECT COUNT(*) FROM Locations";
                 var count = Convert.ToInt32(await checkCommand.ExecuteScalarAsync());
                 if (count > 0)
                 {
@@ -754,6 +902,7 @@ namespace ManholeCardManager.Services
                 ";
                 location2.Parameters.AddWithValue("@now", now);
                 await location2.ExecuteNonQueryAsync();
+                System.Diagnostics.Debug.WriteLine("Location 2 inserted");
 
                 var location3 = connection.CreateCommand();
                 location3.CommandText = @"

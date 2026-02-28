@@ -79,7 +79,8 @@
                               SelectedItem="{Binding
                               DistributionLocationViewModel.SelectedSeriesNumber,
                               Mode=TwoWay}"
-                              SelectionChanged="SeriesNumberFilterComboBox_SelectionChanged">
+                              SelectionChanged="SeriesNumberFilterComboBox_SelectionChanged"
+                              DropDownOpened="SeriesNumberFilterComboBox_DropDownOpened">
                         <ComboBox.ItemTemplate>
                             <DataTemplate>
                                 <TextBlock Text="{Binding}"/>
@@ -148,26 +149,31 @@
                                                                     Stretch="Uniform"/>
                                                                 
                                                                 <!-- 取得ステータス表示（画像の上に重ねる） -->
-                                                                <StackPanel
-                                                                    VerticalAlignment="Top"
+                                                                <Button
+                                                                    Background="Transparent"
+                                                                    BorderThickness="0"
+                                                                    Padding="8"
                                                                     HorizontalAlignment="Left"
-                                                                    Spacing="5"
-                                                                    Margin="8">
-                                                                    <Ellipse
-                                                                        Width="32"
-                                                                        Height="32"
-                                                                        Fill="{Binding
-                                                                        IsAcquired,
-                                                                        Converter={StaticResource
-                                                                        AcquisitionStatusColorConverter}}"/>
-                                                                    <TextBlock
-                                                                        Text="{Binding
-                                                                        AcquisitionStatusDisplay}"
-                                                                        FontSize="20"
-                                                                        FontWeight="Bold"
-                                                                        TextAlignment="Center"
-                                                                        Foreground="White"/>
-                                                                </StackPanel>
+                                                                    VerticalAlignment="Top"
+                                                                    Click="AcquisitionStatus_Click">
+                                                                    <Grid>
+                                                                        <Ellipse
+                                                                            Width="32"
+                                                                            Height="32"
+                                                                            Fill="{Binding
+                                                                            IsAcquired,
+                                                                            Converter={StaticResource
+                                                                            AcquisitionStatusColorConverter}}"/>
+                                                                        <TextBlock
+                                                                            Text="{Binding
+                                                                            AcquisitionStatusDisplay}"
+                                                                            FontSize="20"
+                                                                            FontWeight="Bold"
+                                                                            HorizontalAlignment="Center"
+                                                                            VerticalAlignment="Center"
+                                                                            Foreground="White"/>
+                                                                    </Grid>
+                                                                </Button>
                                                             </Grid>
                                                         </Border>
                                                         <TextBlock

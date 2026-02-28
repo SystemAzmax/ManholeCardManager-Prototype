@@ -1,11 +1,15 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Media;
 using ManholeCardManager.Models;
 using ManholeCardManager.Services;
 using ManholeCardManager.ViewModels;
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Windows.Foundation;
+using Microsoft.UI.Dispatching;
 
 namespace ManholeCardManager
 {
@@ -159,18 +163,14 @@ namespace ManholeCardManager
                 dialog.XamlRoot = root.XamlRoot;
             }
 
-            var asyncOp = dialog.ShowAsync();
-            asyncOp.AsTask().ContinueWith(async task =>
+            var result = await dialog.ShowAsync();
+            if (result == ContentDialogResult.Primary)
             {
-                var result = await task;
-                if (result == ContentDialogResult.Primary)
+                if (_viewModel?.CardCollectionViewModel != null)
                 {
-                    if (_viewModel?.CardCollectionViewModel != null)
-                    {
-                        await _viewModel.CardCollectionViewModel.DeleteCardAsync(card);
-                    }
+                    await _viewModel.CardCollectionViewModel.DeleteCardAsync(card);
                 }
-            });
+            }
         }
 
         /// <summary>
@@ -195,6 +195,97 @@ namespace ManholeCardManager
         /// </summary>
         private void SeriesNumberFilterComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+        }
+
+        /// <summary>
+        /// 弾数フィルタコンボボックスドロップダウン開始イベント。
+        /// ドロップダウンのスクロールを最下部に移動します。
+        /// </summary>
+        private async void SeriesNumberFilterComboBox_DropDownOpened(
+            object sender, object e)
+        {
+            if (sender is not ComboBox comboBox
+                || comboBox.Items.Count <= 0
+                || comboBox.XamlRoot == null)
+                return;
+
+            // Popupのレンダリング完了を待つ
+            await Task.Delay(50);
+
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                try
+                {
+                    ScrollToBottomOfDropDown(comboBox);
+                }
+                catch
+                {
+                    // 処理に失敗した場合はスキップ
+                }
+            });
+        }
+
+        /// <summary>
+        /// ComboBoxのドロップダウンPopup内の
+        /// ScrollViewerを最下部へスクロールします。
+        /// </summary>
+        /// <param name="comboBox">
+        /// 対象のComboBox
+        /// </param>
+        private static void ScrollToBottomOfDropDown(
+            ComboBox comboBox)
+        {
+            var popups = VisualTreeHelper
+                .GetOpenPopupsForXamlRoot(comboBox.XamlRoot);
+
+            foreach (var popup in popups)
+            {
+                var sv = FindDescendant<ScrollViewer>(
+                    popup.Child);
+                if (sv != null)
+                {
+                    sv.ChangeView(
+                        null,
+                        sv.ScrollableHeight,
+                        null,
+                        false);
+                    return;
+                }
+            }
+        }
+
+        /// <summary>
+        /// ビジュアルツリーから指定型の子孫要素を探します。
+        /// </summary>
+        /// <typeparam name="T">探索対象の型</typeparam>
+        /// <param name="parent">探索開始の親要素</param>
+        /// <returns>
+        /// 見つかった要素。見つからない場合はnull。
+        /// </returns>
+        private static T? FindDescendant<T>(
+            DependencyObject parent) where T : DependencyObject
+        {
+            var count = VisualTreeHelper
+                .GetChildrenCount(parent);
+
+            for (int i = 0; i < count; i++)
+            {
+                var child = VisualTreeHelper
+                    .GetChild(parent, i);
+
+                if (child is T found)
+                {
+                    return found;
+                }
+
+                var result = FindDescendant<T>(child);
+                if (result != null)
+                {
+                    return result;
+                }
+            }
+
+            return null;
         }
 
         /// <summary>
@@ -238,6 +329,61 @@ namespace ManholeCardManager
             {
                 System.Diagnostics.Debug.WriteLine(
                     $"Error opening URL: {ex}");
+            }
+        }
+
+        /// <summary>
+        /// 取得ステータスクリックイベント
+        /// </summary>
+        private async void AcquisitionStatus_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var button = sender as Button;
+                var card = button?.DataContext as CardWithAcquisitionStatus;
+                
+                if (card == null)
+                {
+                    System.Diagnostics.Debug.WriteLine("AcquisitionStatus_Click: Card is null");
+                    System.Diagnostics.Debug.WriteLine($"  Button DataContext type: {button?.DataContext?.GetType().Name}");
+                    return;
+                }
+
+                System.Diagnostics.Debug.WriteLine(
+                    $"AcquisitionStatus_Click: CardId = {card.CardId}, Current Status = {card.IsAcquired}");
+
+                if (_viewModel?.DistributionLocationViewModel == null)
+                {
+                    System.Diagnostics.Debug.WriteLine("AcquisitionStatus_Click: ViewModel is null");
+                    return;
+                }
+
+                // 配布場所を特定
+                var locationWithCards = _viewModel.DistributionLocationViewModel.Locations
+                    .FirstOrDefault(l => l.DistributedCards.Any(c => c.CardId == card.CardId));
+
+                if (locationWithCards != null)
+                {
+                    System.Diagnostics.Debug.WriteLine(
+                        $"AcquisitionStatus_Click: Found location {locationWithCards.LocationId}");
+                        
+                    await _viewModel.DistributionLocationViewModel.ToggleCardAcquisitionAsync(
+                        card.CardId, locationWithCards.LocationId);
+                    
+                    System.Diagnostics.Debug.WriteLine(
+                        $"AcquisitionStatus_Click: Status toggled for CardId = {card.CardId}, New Status = {card.IsAcquired}");
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine(
+                        $"AcquisitionStatus_Click: Location not found for CardId = {card.CardId}");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"Error toggling acquisition status: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"  Stack trace: {ex.StackTrace}");
             }
         }
     }

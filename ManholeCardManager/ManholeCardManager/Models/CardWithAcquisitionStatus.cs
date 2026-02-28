@@ -1,10 +1,14 @@
+using System.ComponentModel;
+
 namespace ManholeCardManager.Models
 {
     /// <summary>
     /// 取得状況付きのカード情報
     /// </summary>
-    public class CardWithAcquisitionStatus
+    public class CardWithAcquisitionStatus : INotifyPropertyChanged
     {
+        private bool _isAcquired;
+
         /// <summary>
         /// カードID
         /// </summary>
@@ -13,12 +17,24 @@ namespace ManholeCardManager.Models
         /// <summary>
         /// 取得済みフラグ
         /// </summary>
-        public bool IsAcquired { get; set; }
+        public bool IsAcquired
+        {
+            get => _isAcquired;
+            set
+            {
+                if (_isAcquired != value)
+                {
+                    _isAcquired = value;
+                    OnPropertyChanged(nameof(IsAcquired));
+                    OnPropertyChanged(nameof(AcquisitionStatusDisplay));
+                }
+            }
+        }
 
         /// <summary>
         /// 取得状況を表示用文字列で取得
         /// </summary>
-        public string AcquisitionStatusDisplay => IsAcquired ? "◯" : "　";
+        public string AcquisitionStatusDisplay => string.Empty;
 
         /// <summary>
         /// 都道府県
@@ -153,6 +169,16 @@ namespace ManholeCardManager.Models
 
                 return string.Empty;
             }
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        /// <summary>
+        /// プロパティ変更通知
+        /// </summary>
+        protected void OnPropertyChanged(string propertyName)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
     }
 }

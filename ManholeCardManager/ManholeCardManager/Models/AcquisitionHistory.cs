@@ -18,6 +18,11 @@ namespace ManholeCardManager.Models
         public int CardId { get; set; }
 
         /// <summary>
+        /// 取得済みフラグ
+        /// </summary>
+        public bool IsAcquired { get; set; }
+
+        /// <summary>
         /// 取得日時
         /// </summary>
         public DateTimeOffset AcquisitionDate { get; set; }
