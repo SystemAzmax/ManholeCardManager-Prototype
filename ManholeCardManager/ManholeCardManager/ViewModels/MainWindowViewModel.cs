@@ -1,7 +1,6 @@
 using ManholeCardManager.Models;
 using ManholeCardManager.Services;
 using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Threading.Tasks;
