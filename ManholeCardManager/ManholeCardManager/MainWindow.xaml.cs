@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using System;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -27,12 +28,35 @@ namespace ManholeCardManager
         public MainWindow()
         {
             InitializeComponent();
-            
+
+            // ウィンドウアイコンを設定
+            SetWindowIcon();
+
             // ローカライズされたタイトルを設定
             var locService = LocalizationService.Instance;
             Title = locService.GetString("AppTitle");
             
             this.Activated += MainWindow_Activated;
+        }
+
+        /// <summary>
+        /// ウィンドウアイコンを設定
+        /// </summary>
+        private void SetWindowIcon()
+        {
+            try
+            {
+                IntPtr hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+                var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hWnd);
+                var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(windowId);
+
+                // シンプルにAppIcon.icoを設定
+                appWindow.SetIcon("Assets\\AppIcon.ico");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "ウィンドウアイコンの設定に失敗しました。");
+            }
         }
 
         private bool _isInitialized = false;

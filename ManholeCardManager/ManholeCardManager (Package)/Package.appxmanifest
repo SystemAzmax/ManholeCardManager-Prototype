@@ -38,10 +38,15 @@
         DisplayName="マンホールカード取得管理"
         Description="マンホールカード取得状況を管理するアプリケーション"
         BackgroundColor="transparent"
-        Square150x150Logo="Images\Square150x150Logo.png"
-        Square44x44Logo="Images\Square44x44Logo.png">
-        <uap:DefaultTile Wide310x150Logo="Images\Wide310x150Logo.png" />
-        <uap:SplashScreen Image="Images\SplashScreen.png" />
+        Square150x150Logo="Images\Square150x150Logo.scale-200.png"
+        Square44x44Logo="Images\Square44x44Logo.scale-200.png">
+        <uap:DefaultTile Wide310x150Logo="Images\Wide310x150Logo.scale-200.png"
+                         ShortName="マンホールカード">
+          <uap:ShowNameOnTiles>
+            <uap:ShowOn Tile="square150x150Logo"/>
+          </uap:ShowNameOnTiles>
+        </uap:DefaultTile>
+        <uap:SplashScreen Image="Images\SplashScreen.scale-200.png" />
       </uap:VisualElements>
     </Application>
   </Applications>
