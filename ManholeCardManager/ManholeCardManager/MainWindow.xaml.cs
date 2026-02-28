@@ -1,15 +1,14 @@
-using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Controls.Primitives;
-using Microsoft.UI.Xaml.Media;
 using ManholeCardManager.Models;
 using ManholeCardManager.Services;
 using ManholeCardManager.ViewModels;
+using Microsoft.Extensions.Logging;
+using Microsoft.UI.Dispatching;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
-using Windows.Foundation;
-using Microsoft.UI.Dispatching;
 
 namespace ManholeCardManager
 {
@@ -20,6 +19,7 @@ namespace ManholeCardManager
     {
         private MainWindowViewModel? _viewModel;
         private DatabaseService? _databaseService;
+        private readonly ILogger _logger = App.LoggerFactory.CreateLogger("MainWindow");
 
         /// <summary>
         /// コンストラクタ
@@ -31,7 +31,6 @@ namespace ManholeCardManager
             // ローカライズされたタイトルを設定
             var locService = LocalizationService.Instance;
             Title = locService.GetString("AppTitle");
-            System.Diagnostics.Debug.WriteLine($"Window title set to: {Title}");
             
             this.Activated += MainWindow_Activated;
         }
@@ -52,8 +51,7 @@ namespace ManholeCardManager
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error initializing: {ex}");
-
+                _logger.LogError(ex, "ウィンドウの初期化に失敗しました。");
                 var dialog = new ContentDialog
                 {
                     Title = "Error initializing database",
@@ -70,7 +68,8 @@ namespace ManholeCardManager
         /// </summary>
         private async Task InitializeAsync()
         {
-            _databaseService = new DatabaseService();
+            var logger = App.LoggerFactory.CreateLogger<DatabaseService>();
+            _databaseService = new DatabaseService(logger);
             await _databaseService.InitializeAsync();
 
             _viewModel = new MainWindowViewModel();
@@ -218,9 +217,9 @@ namespace ManholeCardManager
                 {
                     ScrollToBottomOfDropDown(comboBox);
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // 処理に失敗した場合はスキップ
+                    _logger.LogWarning(ex, "ドロップダウンのスクロールに失敗しました。");
                 }
             });
         }
@@ -300,35 +299,22 @@ namespace ManholeCardManager
                 var button = sender as Button;
                 var url = button?.Tag as string;
 
-                System.Diagnostics.Debug.WriteLine(
-                    $"StockStatusLink_Click: URL = {url}");
-
                 if (string.IsNullOrEmpty(url))
                 {
-                    System.Diagnostics.Debug.WriteLine(
-                        "StockStatusLink_Click: URL is empty or null");
                     return;
                 }
 
                 // URLが正しい形式か確認
                 if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
                 {
-                    System.Diagnostics.Debug.WriteLine(
-                        $"StockStatusLink_Click: Invalid URI format: {url}");
                     return;
                 }
 
-                System.Diagnostics.Debug.WriteLine(
-                    $"StockStatusLink_Click: Opening URL: {uri}");
-
                 var result = await Windows.System.Launcher.LaunchUriAsync(uri);
-                System.Diagnostics.Debug.WriteLine(
-                    $"StockStatusLink_Click: Launch result = {result}");
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine(
-                    $"Error opening URL: {ex}");
+                _logger.LogWarning(ex, "URLを開く際にエラーが発生しました。");
             }
         }
 
@@ -344,17 +330,11 @@ namespace ManholeCardManager
                 
                 if (card == null)
                 {
-                    System.Diagnostics.Debug.WriteLine("AcquisitionStatus_Click: Card is null");
-                    System.Diagnostics.Debug.WriteLine($"  Button DataContext type: {button?.DataContext?.GetType().Name}");
                     return;
                 }
 
-                System.Diagnostics.Debug.WriteLine(
-                    $"AcquisitionStatus_Click: CardId = {card.CardId}, Current Status = {card.IsAcquired}");
-
                 if (_viewModel?.DistributionLocationViewModel == null)
                 {
-                    System.Diagnostics.Debug.WriteLine("AcquisitionStatus_Click: ViewModel is null");
                     return;
                 }
 
@@ -364,26 +344,13 @@ namespace ManholeCardManager
 
                 if (locationWithCards != null)
                 {
-                    System.Diagnostics.Debug.WriteLine(
-                        $"AcquisitionStatus_Click: Found location {locationWithCards.LocationId}");
-                        
                     await _viewModel.DistributionLocationViewModel.ToggleCardAcquisitionAsync(
                         card.CardId, locationWithCards.LocationId);
-                    
-                    System.Diagnostics.Debug.WriteLine(
-                        $"AcquisitionStatus_Click: Status toggled for CardId = {card.CardId}, New Status = {card.IsAcquired}");
-                }
-                else
-                {
-                    System.Diagnostics.Debug.WriteLine(
-                        $"AcquisitionStatus_Click: Location not found for CardId = {card.CardId}");
                 }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine(
-                    $"Error toggling acquisition status: {ex.Message}");
-                System.Diagnostics.Debug.WriteLine($"  Stack trace: {ex.StackTrace}");
+                _logger.LogError(ex, "カード取得ステータスの切り替えに失敗しました。");
             }
         }
 
@@ -459,17 +426,12 @@ namespace ManholeCardManager
 
                         // 未保存状態に設定（黒丸を表示）
                         card.SaveStatus = "unsaved";
-
-                        System.Diagnostics.Debug.WriteLine(
-                            $"AcquisitionDatePicker_Click: Date selected for CardId = {card.CardId}, Date = {dateTimeOffset:O}");
                     }
                 }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine(
-                    $"Error in AcquisitionDatePicker_Click: {ex.Message}");
-                System.Diagnostics.Debug.WriteLine($"  Stack trace: {ex.StackTrace}");
+                _logger.LogError(ex, "取得日時ピッカーの処理に失敗しました。");
             }
         }
 
@@ -506,18 +468,12 @@ namespace ManholeCardManager
                 // 保存成功状態に変更
                 card.SaveStatus = "success";
 
-                System.Diagnostics.Debug.WriteLine(
-                    $"SaveAcquisitionData_Click: Data saved for CardId = {card.CardId}");
-
                 // 2秒後に未編集状態に戻す
                 _ = ResetSaveStatusAsync(card, 2000);
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine(
-                    $"Error in SaveAcquisitionData_Click: {ex.Message}");
-                System.Diagnostics.Debug.WriteLine($"  Stack trace: {ex.StackTrace}");
-
+                _logger.LogError(ex, "取得日時データの保存に失敗しました。CardId={CardId}", card.CardId);
                 // 失敗状態に変更（バツが消えない）
                 card.SaveStatus = "error";
             }
@@ -554,8 +510,7 @@ namespace ManholeCardManager
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine(
-                    $"Error in AcquisitionDateTextBox_TextChanged: {ex.Message}");
+                _logger.LogWarning(ex, "取得日時テキストボックスの変更処理に失敗しました。");
             }
         }
 
@@ -581,8 +536,7 @@ namespace ManholeCardManager
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine(
-                    $"Error in NotesTextBox_TextChanged: {ex.Message}");
+                _logger.LogWarning(ex, "備考テキストボックスの変更処理に失敗しました。");
             }
         }
     }

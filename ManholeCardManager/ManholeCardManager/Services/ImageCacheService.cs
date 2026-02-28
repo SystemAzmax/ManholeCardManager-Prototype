@@ -12,9 +12,27 @@ namespace ManholeCardManager.Services
     {
         private const string CACHE_FOLDER_NAME = "ImageCache";
         private const string DUMMY_IMAGE_NAME = "dummy_card.png";
+        
+        /// <summary>
+        /// HttpClientのタイムアウト時間（秒）
+        /// </summary>
+        private const int HTTP_CLIENT_TIMEOUT_SECONDS = 30;
+        
         private readonly string _cacheDirectory;
         private readonly string _dummyImagePath;
-        private readonly HttpClient _httpClient;
+        
+        /// <summary>
+        /// 共有HttpClientインスタンス（シングルトン）
+        /// スレッドセーフな静的フィールドで、アプリケーション全体で共有される。
+        /// HttpClientは再利用することでコネクションプールとDNSキャッシュを活用し、
+        /// パフォーマンスとメモリ効率を向上させる。
+        /// 
+        /// 参考: https://docs.microsoft.com/en-us/dotnet/fundamentals/networking/http/httpclient
+        /// </summary>
+        private static readonly HttpClient _httpClient = new HttpClient 
+        { 
+            Timeout = TimeSpan.FromSeconds(HTTP_CLIENT_TIMEOUT_SECONDS)
+        };
 
         /// <summary>
         /// コンストラクタ
@@ -26,8 +44,9 @@ namespace ManholeCardManager.Services
                 var localFolder = Windows.Storage.ApplicationData.Current.LocalFolder.Path;
                 _cacheDirectory = Path.Combine(localFolder, CACHE_FOLDER_NAME);
             }
-            catch
+            catch (InvalidOperationException)
             {
+                // Windows.Storage.ApplicationData にアクセスできない場合（UWP以外の環境など）
                 var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
                 var appFolder = Path.Combine(localAppData, "ManholeCardManager");
                 _cacheDirectory = Path.Combine(appFolder, CACHE_FOLDER_NAME);
@@ -39,8 +58,6 @@ namespace ManholeCardManager.Services
             }
 
             _dummyImagePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", DUMMY_IMAGE_NAME);
-            _httpClient = new HttpClient();
-            _httpClient.Timeout = TimeSpan.FromSeconds(30);
         }
 
         /// <summary>
@@ -74,9 +91,19 @@ namespace ManholeCardManager.Services
 
                 return _dummyImagePath;
             }
-            catch (Exception ex)
+            catch (HttpRequestException)
             {
-                System.Diagnostics.Debug.WriteLine($"画像取得エラー: {ex.Message}");
+                // ネットワークエラーやHTTPエラーの場合はダミー画像を返す
+                return _dummyImagePath;
+            }
+            catch (IOException)
+            {
+                // ファイルの読み書きエラーの場合はダミー画像を返す
+                return _dummyImagePath;
+            }
+            catch (OperationCanceledException)
+            {
+                // タイムアウト時はダミー画像を返す
                 return _dummyImagePath;
             }
         }
@@ -112,9 +139,13 @@ namespace ManholeCardManager.Services
                     }
                 }
             }
-            catch (Exception ex)
+            catch (IOException)
             {
-                System.Diagnostics.Debug.WriteLine($"キャッシュクリアエラー: {ex.Message}");
+                // ファイルが使用中またはアクセス不可の場合は無視
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // アクセス権限がない場合は無視
             }
         }
 

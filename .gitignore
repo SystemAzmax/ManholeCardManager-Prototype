@@ -363,3 +363,6 @@ MigrationBackup/
 FodyWeavers.xsd
 /.github/copilot-instructions.md
 /.github/pull_request_template.md
+/.github/LOGGING_GUIDE.md
+/Directory.Build.props
+/ManholeCardManager/ManholeCardManager/ManholeCardManager/series-settings.json

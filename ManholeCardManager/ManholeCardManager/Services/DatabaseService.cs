@@ -1,5 +1,6 @@
 using ManholeCardManager.Models;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -15,8 +16,46 @@ namespace ManholeCardManager.Services
     public class DatabaseService
     {
         private const string DATABASE_NAME = "manholecard.db";
+        
+        // Cardsテーブルのカラムインデックス（SELECT * FROM Cardsの順序に対応）
+        private const int CARD_ID_INDEX = 0;
+        private const int LOCATION_ID_INDEX = 1;
+        private const int DESIGN_IMAGE_PATH_INDEX = 2;
+        private const int SERIES_NUMBER_INDEX = 3;
+        private const int ISSUED_DATE_INDEX = 4;
+        private const int CREATED_DATE_INDEX = 5;
+        private const int UPDATED_DATE_INDEX = 6;
+        
+        // Locationsテーブルのカラムインデックス
+        private const int LOCATION_LOCATION_ID_INDEX = 0;
+        private const int LOCATION_CARD_ID_INDEX = 1;
+        private const int LOCATION_NAME_INDEX = 2;
+        private const int LOCATION_PREFECTURE_INDEX = 3;
+        private const int LOCATION_MUNICIPALITY_INDEX = 4;
+        private const int LOCATION_ADDRESS_INDEX = 5;
+        
+        // GetAllDistributionLocationsWithCardsAsyncのSELECT結果のカラムインデックス
+        private const int DIST_LOCATION_ID_INDEX = 0;
+        private const int DIST_LOCATION_NAME_INDEX = 1;
+        private const int DIST_ADDRESS_INDEX = 2;
+        private const int DIST_PREFECTURE_INDEX = 3;
+        private const int DIST_MUNICIPALITY_INDEX = 4;
+        private const int DIST_DESCRIPTION_INDEX = 5;
+        private const int DIST_STOCK_STATUS_INDEX = 6;
+        private const int DIST_CARD_ID_INDEX = 7;
+        private const int DIST_DESIGN_IMAGE_PATH_INDEX = 8;
+        private const int DIST_SERIES_NUMBER_INDEX = 9;
+        private const int DIST_ISSUED_DATE_INDEX = 10;
+        private const int DIST_IS_ACQUIRED_INDEX = 11;
+        private const int DIST_ACQUISITION_DATE_INDEX = 12;
+        private const int DIST_NOTES_INDEX = 13;
+        
+        // PRAGMAテーブルのカラムインデックス
+        private const int PRAGMA_COLUMN_NAME_INDEX = 1;
+        
         private string _databasePath = string.Empty;
         private readonly string? _customBasePath;
+        private readonly ILogger<DatabaseService>? _logger;
 
         /// <summary>
         /// コンストラクタ（デフォルト）
@@ -35,6 +74,26 @@ namespace ManholeCardManager.Services
         }
 
         /// <summary>
+        /// コンストラクタ（ロガー指定）
+        /// </summary>
+        /// <param name="logger">ロガーインスタンス</param>
+        public DatabaseService(ILogger<DatabaseService> logger)
+        {
+            _logger = logger;
+        }
+
+        /// <summary>
+        /// コンストラクタ（カスタムパスとロガー指定）
+        /// </summary>
+        /// <param name="basePath">データベースフォルダのベースパス</param>
+        /// <param name="logger">ロガーインスタンス</param>
+        public DatabaseService(string basePath, ILogger<DatabaseService> logger)
+        {
+            _customBasePath = basePath;
+            _logger = logger;
+        }
+
+        /// <summary>
         /// データベース接続文字列を取得
         /// </summary>
         private string GetConnectionString()
@@ -49,33 +108,62 @@ namespace ManholeCardManager.Services
         {
             try
             {
+                _logger?.LogInformation("データベース初期化を開始します。");
+
                 if (_customBasePath != null)
                 {
                     _databasePath = Path.Combine(_customBasePath, DATABASE_NAME);
+                    _logger?.LogDebug(
+                        "カスタムパスを使用します: {DatabasePath}",
+                        _databasePath);
                 }
                 else
                 {
                     try
                     {
-                        _databasePath = Path.Combine(Windows.Storage.ApplicationData.Current.LocalFolder.Path, DATABASE_NAME);
+                        _databasePath = Path.Combine(
+                            Windows.Storage.ApplicationData.Current.LocalFolder.Path,
+                            DATABASE_NAME);
+                        _logger?.LogDebug(
+                            "Windows.Storage.ApplicationData を使用します: {DatabasePath}",
+                            _databasePath);
                     }
-                    catch
+                    catch (InvalidOperationException ex)
                     {
-                        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+                        _logger?.LogWarning(
+                            ex,
+                            "Windows.Storage.ApplicationData にアクセスできません。" +
+                            "LocalApplicationData を使用します。");
+                        // Windows.Storage.ApplicationData にアクセスできない場合（UWP以外の環境など）
+                        var localAppData = Environment.GetFolderPath(
+                            Environment.SpecialFolder.LocalApplicationData);
                         var appFolder = Path.Combine(localAppData, "ManholeCardManager");
                         if (!Directory.Exists(appFolder))
                         {
                             Directory.CreateDirectory(appFolder);
                         }
                         _databasePath = Path.Combine(appFolder, DATABASE_NAME);
+                        _logger?.LogDebug(
+                            "LocalApplicationData を使用します: {DatabasePath}",
+                            _databasePath);
                     }
                 }
 
                 await CreateTablesAsync();
+                _logger?.LogInformation("データベース初期化が完了しました。");
             }
-            catch (Exception ex)
+            catch (InvalidOperationException ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Database initialization error: {ex.Message}");
+                _logger?.LogError(
+                    ex,
+                    "データベース初期化中に InvalidOperationException が発生しました。");
+                throw;
+            }
+            catch (SqliteException ex)
+            {
+                _logger?.LogError(
+                    ex,
+                    "データベース初期化中に SqliteException が発生しました。");
                 throw;
             }
         }
@@ -85,11 +173,15 @@ namespace ManholeCardManager.Services
         /// </summary>
         private async Task CreateTablesAsync()
         {
-            using var connection = new SqliteConnection(GetConnectionString());
-            await connection.OpenAsync();
+            try
+            {
+                _logger?.LogInformation("テーブル作成を開始します。");
 
-            var createTablesCommand = connection.CreateCommand();
-            createTablesCommand.CommandText = @"
+                using var connection = new SqliteConnection(GetConnectionString());
+                await connection.OpenAsync();
+
+                var createTablesCommand = connection.CreateCommand();
+                createTablesCommand.CommandText = @"
                 CREATE TABLE IF NOT EXISTS Cards (
                     CardId INTEGER PRIMARY KEY AUTOINCREMENT,
                     LocationId INTEGER,
@@ -135,13 +227,19 @@ namespace ManholeCardManager.Services
                 );
             ";
 
-            await createTablesCommand.ExecuteNonQueryAsync();
+                await createTablesCommand.ExecuteNonQueryAsync();
+                _logger?.LogDebug("すべてのテーブルが作成されました。");
 
-            // 既存テーブルに IsAcquired カラムを追加（マイグレーション）
-            await MigrateAcquisitionHistoryTableAsync(connection);
-
-            // データベースの状態をログ出力
-            await LogDatabaseStatusAsync(connection);
+                // 既存テーブルに IsAcquired カラムを追加（マイグレーション）
+                await MigrateAcquisitionHistoryTableAsync(connection);
+            }
+            catch (SqliteException ex)
+            {
+                _logger?.LogError(
+                    ex,
+                    "テーブル作成中に SqliteException が発生しました。");
+                throw;
+            }
         }
 
         /// <summary>
@@ -151,8 +249,8 @@ namespace ManholeCardManager.Services
         {
             try
             {
-                System.Diagnostics.Debug.WriteLine("Checking AcquisitionHistory table structure...");
-                
+                _logger?.LogInformation("AcquisitionHistory テーブルのマイグレーションを確認します。");
+
                 // カラムの存在確認
                 var checkColumnCommand = connection.CreateCommand();
                 checkColumnCommand.CommandText = "PRAGMA table_info(AcquisitionHistory)";
@@ -164,7 +262,7 @@ namespace ManholeCardManager.Services
                 {
                     while (await reader.ReadAsync())
                     {
-                        var columnName = reader.GetString(1); // name カラムはインデックス1
+                        var columnName = reader.GetString(PRAGMA_COLUMN_NAME_INDEX);
                         columnList.Add(columnName);
                         if (columnName == "IsAcquired")
                         {
@@ -173,44 +271,30 @@ namespace ManholeCardManager.Services
                     }
                 }
 
-                System.Diagnostics.Debug.WriteLine($"Current columns: {string.Join(", ", columnList)}");
-
                 // カラムが存在しない場合は追加
                 if (!hasIsAcquiredColumn)
                 {
-                    System.Diagnostics.Debug.WriteLine("Migrating AcquisitionHistory table: Adding IsAcquired column");
-                    
+                    _logger?.LogInformation("IsAcquired カラムが見つかりません。追加します。");
+
                     var alterTableCommand = connection.CreateCommand();
                     alterTableCommand.CommandText = @"
                         ALTER TABLE AcquisitionHistory 
                         ADD COLUMN IsAcquired INTEGER NOT NULL DEFAULT 1;
                     ";
                     await alterTableCommand.ExecuteNonQueryAsync();
-                    
-                    System.Diagnostics.Debug.WriteLine("Migration completed successfully");
-                    
-                    // マイグレーション後のカラム一覧を再確認
-                    columnList.Clear();
-                    checkColumnCommand = connection.CreateCommand();
-                    checkColumnCommand.CommandText = "PRAGMA table_info(AcquisitionHistory)";
-                    using (var reader = await checkColumnCommand.ExecuteReaderAsync())
-                    {
-                        while (await reader.ReadAsync())
-                        {
-                            columnList.Add(reader.GetString(1));
-                        }
-                    }
-                    System.Diagnostics.Debug.WriteLine($"After migration columns: {string.Join(", ", columnList)}");
+                    _logger?.LogInformation("IsAcquired カラムが追加されました。");
                 }
                 else
                 {
-                    System.Diagnostics.Debug.WriteLine("IsAcquired column already exists, skipping migration");
+                    _logger?.LogDebug("IsAcquired カラムは既に存在します。");
                 }
             }
-            catch (Exception ex)
+            catch (SqliteException ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Migration error: {ex.Message}");
-                System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+                _logger?.LogWarning(
+                    ex,
+                    "マイグレーション実行中に SqliteException が発生しました。" +
+                    "テーブルが既に存在するか、スキーマ関連のエラーと考えられます。");
             }
         }
 
@@ -219,23 +303,56 @@ namespace ManholeCardManager.Services
         /// </summary>
         private async Task LogDatabaseStatusAsync(SqliteConnection connection)
         {
-            var countCommand = connection.CreateCommand();
-            countCommand.CommandText = @"
+            try
+            {
+                var countCommand = connection.CreateCommand();
+                countCommand.CommandText = @"
                 SELECT 
                     (SELECT COUNT(*) FROM Cards) as CardsCount,
                     (SELECT COUNT(*) FROM Locations) as LocationsCount,
                     (SELECT COUNT(*) FROM AcquisitionHistory) as AcquisitionHistoryCount
             ";
 
-            using var reader = await countCommand.ExecuteReaderAsync();
-            if (await reader.ReadAsync())
-            {
-                System.Diagnostics.Debug.WriteLine($"Database Status:");
-                System.Diagnostics.Debug.WriteLine($"  Cards: {reader.GetInt32(0)}");
-                System.Diagnostics.Debug.WriteLine($"  Locations: {reader.GetInt32(1)}");
-                System.Diagnostics.Debug.WriteLine($"  AcquisitionHistory: {reader.GetInt32(2)}");
-                System.Diagnostics.Debug.WriteLine($"  Database Path: {_databasePath}");
+                using var reader = await countCommand.ExecuteReaderAsync();
+                if (await reader.ReadAsync())
+                {
+                    var cardsCount = reader.GetInt32(0);
+                    var locationsCount = reader.GetInt32(1);
+                    var acquisitionHistoryCount = reader.GetInt32(2);
+
+                    _logger?.LogInformation(
+                        "データベース統計情報: " +
+                        "カード件数={CardsCount}, " +
+                        "配布場所件数={LocationsCount}, " +
+                        "取得履歴件数={AcquisitionHistoryCount}",
+                        cardsCount,
+                        locationsCount,
+                        acquisitionHistoryCount);
+                }
             }
+            catch (SqliteException ex)
+            {
+                _logger?.LogWarning(
+                    ex,
+                    "データベース統計情報の取得に失敗しました。");
+            }
+        }
+
+        /// <summary>
+        /// SQLiteリーダーからManholeCardを生成
+        /// </summary>
+        private ManholeCard ReadManholeCard(Microsoft.Data.Sqlite.SqliteDataReader reader)
+        {
+            return new ManholeCard
+            {
+                CardId = reader.GetInt32(CARD_ID_INDEX),
+                LocationId = reader.IsDBNull(LOCATION_ID_INDEX) ? null : reader.GetInt32(LOCATION_ID_INDEX),
+                DesignImagePath = reader.IsDBNull(DESIGN_IMAGE_PATH_INDEX) ? null : reader.GetString(DESIGN_IMAGE_PATH_INDEX),
+                SeriesNumber = reader.GetInt32(SERIES_NUMBER_INDEX),
+                IssuedDate = reader.IsDBNull(ISSUED_DATE_INDEX) ? null : DateTimeOffset.Parse(reader.GetString(ISSUED_DATE_INDEX)),
+                CreatedDate = DateTimeOffset.Parse(reader.GetString(CREATED_DATE_INDEX)),
+                UpdatedDate = DateTimeOffset.Parse(reader.GetString(UPDATED_DATE_INDEX))
+            };
         }
 
         /// <summary>
@@ -244,28 +361,30 @@ namespace ManholeCardManager.Services
         public async Task<List<ManholeCard>> GetAllCardsAsync()
         {
             var cards = new List<ManholeCard>();
-            using var connection = new SqliteConnection(GetConnectionString());
-            await connection.OpenAsync();
-
-            var command = connection.CreateCommand();
-            command.CommandText = "SELECT * FROM Cards";
-
-            using var reader = await command.ExecuteReaderAsync();
-            while (await reader.ReadAsync())
+            try
             {
-                cards.Add(new ManholeCard
-                {
-                    CardId = reader.GetInt32(0),
-                    LocationId = reader.IsDBNull(1) ? null : reader.GetInt32(1),
-                    DesignImagePath = reader.IsDBNull(2) ? null : reader.GetString(2),
-                    SeriesNumber = reader.GetInt32(3),
-                    IssuedDate = reader.IsDBNull(4) ? null : DateTimeOffset.Parse(reader.GetString(4)),
-                    CreatedDate = DateTimeOffset.Parse(reader.GetString(5)),
-                    UpdatedDate = DateTimeOffset.Parse(reader.GetString(6))
-                });
-            }
+                using var connection = new SqliteConnection(GetConnectionString());
+                await connection.OpenAsync();
 
-            return cards;
+                var command = connection.CreateCommand();
+                command.CommandText = "SELECT * FROM Cards";
+
+                using var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    cards.Add(ReadManholeCard(reader));
+                }
+
+                _logger?.LogDebug("全カード取得: {CardCount} 件", cards.Count);
+                return cards;
+            }
+            catch (SqliteException ex)
+            {
+                _logger?.LogError(
+                    ex,
+                    "全カード取得中に SqliteException が発生しました。");
+                throw;
+            }
         }
 
         /// <summary>
@@ -274,33 +393,39 @@ namespace ManholeCardManager.Services
         public async Task<List<ManholeCard>> SearchCardsAsync(string query)
         {
             var cards = new List<ManholeCard>();
-            using var connection = new SqliteConnection(GetConnectionString());
-            await connection.OpenAsync();
+            try
+            {
+                using var connection = new SqliteConnection(GetConnectionString());
+                await connection.OpenAsync();
 
-            var command = connection.CreateCommand();
-            command.CommandText = @"
+                var command = connection.CreateCommand();
+                command.CommandText = @"
                 SELECT DISTINCT c.* FROM Cards c
                 LEFT JOIN Locations l ON c.CardId = l.CardId
                 WHERE l.Prefecture LIKE @query OR l.Municipality LIKE @query
             ";
-            command.Parameters.AddWithValue("@query", $"%{query}%");
+                command.Parameters.AddWithValue("@query", $"%{query}%");
 
-            using var reader = await command.ExecuteReaderAsync();
-            while (await reader.ReadAsync())
-            {
-                cards.Add(new ManholeCard
+                using var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
                 {
-                    CardId = reader.GetInt32(0),
-                    LocationId = reader.IsDBNull(1) ? null : reader.GetInt32(1),
-                    DesignImagePath = reader.IsDBNull(2) ? null : reader.GetString(2),
-                    SeriesNumber = reader.GetInt32(3),
-                    IssuedDate = reader.IsDBNull(4) ? null : DateTimeOffset.Parse(reader.GetString(4)),
-                    CreatedDate = DateTimeOffset.Parse(reader.GetString(5)),
-                    UpdatedDate = DateTimeOffset.Parse(reader.GetString(6))
-                });
-            }
+                    cards.Add(ReadManholeCard(reader));
+                }
 
-            return cards;
+                _logger?.LogDebug(
+                    "カード検索: クエリ={Query}, 結果件数={ResultCount}",
+                    query,
+                    cards.Count);
+                return cards;
+            }
+            catch (SqliteException ex)
+            {
+                _logger?.LogError(
+                    ex,
+                    "カード検索中に SqliteException が発生しました。クエリ={Query}",
+                    query);
+                throw;
+            }
         }
 
         /// <summary>
@@ -309,33 +434,39 @@ namespace ManholeCardManager.Services
         public async Task<List<ManholeCard>> GetCardsByPrefectureAsync(string prefecture)
         {
             var cards = new List<ManholeCard>();
-            using var connection = new SqliteConnection(GetConnectionString());
-            await connection.OpenAsync();
+            try
+            {
+                using var connection = new SqliteConnection(GetConnectionString());
+                await connection.OpenAsync();
 
-            var command = connection.CreateCommand();
-            command.CommandText = @"
+                var command = connection.CreateCommand();
+                command.CommandText = @"
                 SELECT c.* FROM Cards c
                 INNER JOIN Locations l ON c.CardId = l.CardId
                 WHERE l.Prefecture = @prefecture
             ";
-            command.Parameters.AddWithValue("@prefecture", prefecture);
+                command.Parameters.AddWithValue("@prefecture", prefecture);
 
-            using var reader = await command.ExecuteReaderAsync();
-            while (await reader.ReadAsync())
-            {
-                cards.Add(new ManholeCard
+                using var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
                 {
-                    CardId = reader.GetInt32(0),
-                    LocationId = reader.IsDBNull(1) ? null : reader.GetInt32(1),
-                    DesignImagePath = reader.IsDBNull(2) ? null : reader.GetString(2),
-                    SeriesNumber = reader.GetInt32(3),
-                    IssuedDate = reader.IsDBNull(4) ? null : DateTimeOffset.Parse(reader.GetString(4)),
-                    CreatedDate = DateTimeOffset.Parse(reader.GetString(5)),
-                    UpdatedDate = DateTimeOffset.Parse(reader.GetString(6))
-                });
-            }
+                    cards.Add(ReadManholeCard(reader));
+                }
 
-            return cards;
+                _logger?.LogDebug(
+                    "都道府県別カード取得: {Prefecture}={CardCount} 件",
+                    prefecture,
+                    cards.Count);
+                return cards;
+            }
+            catch (SqliteException ex)
+            {
+                _logger?.LogError(
+                    ex,
+                    "都道府県別カード取得中に SqliteException が発生しました。Prefecture={Prefecture}",
+                    prefecture);
+                throw;
+            }
         }
 
         /// <summary>
@@ -344,32 +475,38 @@ namespace ManholeCardManager.Services
         public async Task<List<ManholeCard>> GetCardsBySeriesNumberAsync(int seriesNumber)
         {
             var cards = new List<ManholeCard>();
-            using var connection = new SqliteConnection(GetConnectionString());
-            await connection.OpenAsync();
+            try
+            {
+                using var connection = new SqliteConnection(GetConnectionString());
+                await connection.OpenAsync();
 
-            var command = connection.CreateCommand();
-            command.CommandText = @"
+                var command = connection.CreateCommand();
+                command.CommandText = @"
                 SELECT * FROM Cards
                 WHERE SeriesNumber = @seriesNumber
             ";
-            command.Parameters.AddWithValue("@seriesNumber", seriesNumber);
+                command.Parameters.AddWithValue("@seriesNumber", seriesNumber);
 
-            using var reader = await command.ExecuteReaderAsync();
-            while (await reader.ReadAsync())
-            {
-                cards.Add(new ManholeCard
+                using var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
                 {
-                    CardId = reader.GetInt32(0),
-                    LocationId = reader.IsDBNull(1) ? null : reader.GetInt32(1),
-                    DesignImagePath = reader.IsDBNull(2) ? null : reader.GetString(2),
-                    SeriesNumber = reader.GetInt32(3),
-                    IssuedDate = reader.IsDBNull(4) ? null : DateTimeOffset.Parse(reader.GetString(4)),
-                    CreatedDate = DateTimeOffset.Parse(reader.GetString(5)),
-                    UpdatedDate = DateTimeOffset.Parse(reader.GetString(6))
-                });
-            }
+                    cards.Add(ReadManholeCard(reader));
+                }
 
-            return cards;
+                _logger?.LogDebug(
+                    "弾数別カード取得: Series={SeriesNumber}={CardCount} 件",
+                    seriesNumber,
+                    cards.Count);
+                return cards;
+            }
+            catch (SqliteException ex)
+            {
+                _logger?.LogError(
+                    ex,
+                    "弾数別カード取得中に SqliteException が発生しました。SeriesNumber={SeriesNumber}",
+                    seriesNumber);
+                throw;
+            }
         }
 
         /// <summary>
@@ -379,34 +516,43 @@ namespace ManholeCardManager.Services
             string prefecture, int seriesNumber)
         {
             var cards = new List<ManholeCard>();
-            using var connection = new SqliteConnection(GetConnectionString());
-            await connection.OpenAsync();
+            try
+            {
+                using var connection = new SqliteConnection(GetConnectionString());
+                await connection.OpenAsync();
 
-            var command = connection.CreateCommand();
-            command.CommandText = @"
+                var command = connection.CreateCommand();
+                command.CommandText = @"
                 SELECT c.* FROM Cards c
                 INNER JOIN Locations l ON c.CardId = l.CardId
                 WHERE l.Prefecture = @prefecture AND c.SeriesNumber = @seriesNumber
             ";
-            command.Parameters.AddWithValue("@prefecture", prefecture);
-            command.Parameters.AddWithValue("@seriesNumber", seriesNumber);
+                command.Parameters.AddWithValue("@prefecture", prefecture);
+                command.Parameters.AddWithValue("@seriesNumber", seriesNumber);
 
-            using var reader = await command.ExecuteReaderAsync();
-            while (await reader.ReadAsync())
-            {
-                cards.Add(new ManholeCard
+                using var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
                 {
-                    CardId = reader.GetInt32(0),
-                    LocationId = reader.IsDBNull(1) ? null : reader.GetInt32(1),
-                    DesignImagePath = reader.IsDBNull(2) ? null : reader.GetString(2),
-                    SeriesNumber = reader.GetInt32(3),
-                    IssuedDate = reader.IsDBNull(4) ? null : DateTimeOffset.Parse(reader.GetString(4)),
-                    CreatedDate = DateTimeOffset.Parse(reader.GetString(5)),
-                    UpdatedDate = DateTimeOffset.Parse(reader.GetString(6))
-                });
-            }
+                    cards.Add(ReadManholeCard(reader));
+                }
 
-            return cards;
+                _logger?.LogDebug(
+                    "複合フィルタカード取得: Prefecture={Prefecture}, Series={SeriesNumber}={CardCount} 件",
+                    prefecture,
+                    seriesNumber,
+                    cards.Count);
+                return cards;
+            }
+            catch (SqliteException ex)
+            {
+                _logger?.LogError(
+                    ex,
+                    "複合フィルタカード取得中に SqliteException が発生しました。" +
+                    "Prefecture={Prefecture}, SeriesNumber={SeriesNumber}",
+                    prefecture,
+                    seriesNumber);
+                throw;
+            }
         }
 
         /// <summary>
@@ -414,25 +560,41 @@ namespace ManholeCardManager.Services
         /// </summary>
         public async Task<int> InsertCardAsync(ManholeCard card)
         {
-            using var connection = new SqliteConnection(GetConnectionString());
-            await connection.OpenAsync();
+            try
+            {
+                using var connection = new SqliteConnection(GetConnectionString());
+                await connection.OpenAsync();
 
-            var command = connection.CreateCommand();
-            command.CommandText = @"
+                var command = connection.CreateCommand();
+                command.CommandText = @"
                 INSERT INTO Cards (LocationId, DesignImagePath, SeriesNumber, IssuedDate, CreatedDate, UpdatedDate)
                 VALUES (@locationId, @designImagePath, @seriesNumber, @issuedDate, @createdDate, @updatedDate);
                 SELECT last_insert_rowid();
             ";
 
-            command.Parameters.AddWithValue("@locationId", (object?)card.LocationId ?? DBNull.Value);
-            command.Parameters.AddWithValue("@designImagePath", (object?)card.DesignImagePath ?? DBNull.Value);
-            command.Parameters.AddWithValue("@seriesNumber", card.SeriesNumber);
-            command.Parameters.AddWithValue("@issuedDate", (object?)card.IssuedDate?.ToString("O") ?? DBNull.Value);
-            command.Parameters.AddWithValue("@createdDate", DateTimeOffset.Now.ToString("O"));
-            command.Parameters.AddWithValue("@updatedDate", DateTimeOffset.Now.ToString("O"));
+                command.Parameters.AddWithValue("@locationId", (object?)card.LocationId ?? DBNull.Value);
+                command.Parameters.AddWithValue("@designImagePath", (object?)card.DesignImagePath ?? DBNull.Value);
+                command.Parameters.AddWithValue("@seriesNumber", card.SeriesNumber);
+                command.Parameters.AddWithValue("@issuedDate", (object?)card.IssuedDate?.ToString("O") ?? DBNull.Value);
+                command.Parameters.AddWithValue("@createdDate", DateTimeOffset.Now.ToString("O"));
+                command.Parameters.AddWithValue("@updatedDate", DateTimeOffset.Now.ToString("O"));
 
-            var result = await command.ExecuteScalarAsync();
-            return Convert.ToInt32(result);
+                var result = await command.ExecuteScalarAsync();
+                var insertedId = Convert.ToInt32(result);
+                _logger?.LogInformation(
+                    "カード挿入: CardId={CardId}, Series={SeriesNumber}",
+                    insertedId,
+                    card.SeriesNumber);
+                return insertedId;
+            }
+            catch (SqliteException ex)
+            {
+                _logger?.LogError(
+                    ex,
+                    "カード挿入中に SqliteException が発生しました。Series={SeriesNumber}",
+                    card.SeriesNumber);
+                throw;
+            }
         }
 
         /// <summary>
@@ -440,11 +602,13 @@ namespace ManholeCardManager.Services
         /// </summary>
         public async Task<int> UpdateCardAsync(ManholeCard card)
         {
-            using var connection = new SqliteConnection(GetConnectionString());
-            await connection.OpenAsync();
+            try
+            {
+                using var connection = new SqliteConnection(GetConnectionString());
+                await connection.OpenAsync();
 
-            var command = connection.CreateCommand();
-            command.CommandText = @"
+                var command = connection.CreateCommand();
+                command.CommandText = @"
                 UPDATE Cards 
                 SET LocationId = @locationId, 
                     DesignImagePath = @designImagePath, 
@@ -454,14 +618,28 @@ namespace ManholeCardManager.Services
                 WHERE CardId = @cardId
             ";
 
-            command.Parameters.AddWithValue("@cardId", card.CardId);
-            command.Parameters.AddWithValue("@locationId", (object?)card.LocationId ?? DBNull.Value);
-            command.Parameters.AddWithValue("@designImagePath", (object?)card.DesignImagePath ?? DBNull.Value);
-            command.Parameters.AddWithValue("@seriesNumber", card.SeriesNumber);
-            command.Parameters.AddWithValue("@issuedDate", (object?)card.IssuedDate?.ToString("O") ?? DBNull.Value);
-            command.Parameters.AddWithValue("@updatedDate", DateTimeOffset.Now.ToString("O"));
+                command.Parameters.AddWithValue("@cardId", card.CardId);
+                command.Parameters.AddWithValue("@locationId", (object?)card.LocationId ?? DBNull.Value);
+                command.Parameters.AddWithValue("@designImagePath", (object?)card.DesignImagePath ?? DBNull.Value);
+                command.Parameters.AddWithValue("@seriesNumber", card.SeriesNumber);
+                command.Parameters.AddWithValue("@issuedDate", (object?)card.IssuedDate?.ToString("O") ?? DBNull.Value);
+                command.Parameters.AddWithValue("@updatedDate", DateTimeOffset.Now.ToString("O"));
 
-            return await command.ExecuteNonQueryAsync();
+                var result = await command.ExecuteNonQueryAsync();
+                _logger?.LogInformation(
+                    "カード更新: CardId={CardId}（更新行数={RowCount}）",
+                    card.CardId,
+                    result);
+                return result;
+            }
+            catch (SqliteException ex)
+            {
+                _logger?.LogError(
+                    ex,
+                    "カード更新中に SqliteException が発生しました。CardId={CardId}",
+                    card.CardId);
+                throw;
+            }
         }
 
         /// <summary>
@@ -469,14 +647,30 @@ namespace ManholeCardManager.Services
         /// </summary>
         public async Task<int> DeleteCardAsync(int cardId)
         {
-            using var connection = new SqliteConnection(GetConnectionString());
-            await connection.OpenAsync();
+            try
+            {
+                using var connection = new SqliteConnection(GetConnectionString());
+                await connection.OpenAsync();
 
-            var deleteCard = connection.CreateCommand();
-            deleteCard.CommandText = "DELETE FROM Cards WHERE CardId = @cardId";
-            deleteCard.Parameters.AddWithValue("@cardId", cardId);
-            
-            return await deleteCard.ExecuteNonQueryAsync();
+                var deleteCard = connection.CreateCommand();
+                deleteCard.CommandText = "DELETE FROM Cards WHERE CardId = @cardId";
+                deleteCard.Parameters.AddWithValue("@cardId", cardId);
+                
+                var result = await deleteCard.ExecuteNonQueryAsync();
+                _logger?.LogInformation(
+                    "カード削除: CardId={CardId}（削除行数={RowCount}）",
+                    cardId,
+                    result);
+                return result;
+            }
+            catch (SqliteException ex)
+            {
+                _logger?.LogError(
+                    ex,
+                    "カード削除中に SqliteException が発生しました。CardId={CardId}",
+                    cardId);
+                throw;
+            }
         }
 
         /// <summary>
@@ -485,33 +679,48 @@ namespace ManholeCardManager.Services
         public async Task<List<CardLocation>> GetCardLocationsAsync(int cardId)
         {
             var locations = new List<CardLocation>();
-            using var connection = new SqliteConnection(GetConnectionString());
-            await connection.OpenAsync();
-
-            var command = connection.CreateCommand();
-            command.CommandText = "SELECT * FROM Locations WHERE CardId = @cardId";
-            command.Parameters.AddWithValue("@cardId", cardId);
-
-            using var reader = await command.ExecuteReaderAsync();
-            while (await reader.ReadAsync())
+            try
             {
-                locations.Add(new CardLocation
-                {
-                    LocationId = reader.GetInt32(0),
-                    CardId = reader.IsDBNull(1) ? 0 : reader.GetInt32(1),
-                    LocationName = reader.GetString(2),
-                    Prefecture = reader.IsDBNull(3) ? null : reader.GetString(3),
-                    Municipality = reader.IsDBNull(4) ? null : reader.GetString(4),
-                    Address = reader.IsDBNull(5) ? null : reader.GetString(5),
-                    Latitude = reader.IsDBNull(6) ? null : reader.GetDouble(6),
-                    Longitude = reader.IsDBNull(7) ? null : reader.GetDouble(7),
-                    Description = reader.IsDBNull(8) ? null : reader.GetString(8),
-                    StockStatus = reader.IsDBNull(9) ? null : reader.GetString(9),
-                    CreatedDate = DateTimeOffset.Parse(reader.GetString(10))
-                });
-            }
+                using var connection = new SqliteConnection(GetConnectionString());
+                await connection.OpenAsync();
 
-            return locations;
+                var command = connection.CreateCommand();
+                command.CommandText = "SELECT * FROM Locations WHERE CardId = @cardId";
+                command.Parameters.AddWithValue("@cardId", cardId);
+
+                using var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    locations.Add(new CardLocation
+                    {
+                        LocationId = reader.GetInt32(0),
+                        CardId = reader.IsDBNull(1) ? 0 : reader.GetInt32(1),
+                        LocationName = reader.GetString(2),
+                        Prefecture = reader.IsDBNull(3) ? null : reader.GetString(3),
+                        Municipality = reader.IsDBNull(4) ? null : reader.GetString(4),
+                        Address = reader.IsDBNull(5) ? null : reader.GetString(5),
+                        Latitude = reader.IsDBNull(6) ? null : reader.GetDouble(6),
+                        Longitude = reader.IsDBNull(7) ? null : reader.GetDouble(7),
+                        Description = reader.IsDBNull(8) ? null : reader.GetString(8),
+                        StockStatus = reader.IsDBNull(9) ? null : reader.GetString(9),
+                        CreatedDate = DateTimeOffset.Parse(reader.GetString(10))
+                    });
+                }
+
+                _logger?.LogDebug(
+                    "カード位置情報取得: CardId={CardId}={LocationCount} 件",
+                    cardId,
+                    locations.Count);
+                return locations;
+            }
+            catch (SqliteException ex)
+            {
+                _logger?.LogError(
+                    ex,
+                    "カード位置情報取得中に SqliteException が発生しました。CardId={CardId}",
+                    cardId);
+                throw;
+            }
         }
 
         /// <summary>
@@ -531,29 +740,44 @@ namespace ManholeCardManager.Services
         public async Task<List<ManholeLocation>> GetManholeLocationsByCardIdAsync(int cardId)
         {
             var manholeLocations = new List<ManholeLocation>();
-            using var connection = new SqliteConnection(GetConnectionString());
-            await connection.OpenAsync();
-
-            var command = connection.CreateCommand();
-            command.CommandText = "SELECT * FROM ManholeLocations WHERE CardId = @cardId";
-            command.Parameters.AddWithValue("@cardId", cardId);
-
-            using var reader = await command.ExecuteReaderAsync();
-            while (await reader.ReadAsync())
+            try
             {
-                manholeLocations.Add(new ManholeLocation
-                {
-                    RelationId = reader.GetInt32(0),
-                    LocationId = reader.GetInt32(1),
-                    CardId = reader.GetInt32(2),
-                    Latitude = reader.IsDBNull(3) ? null : reader.GetDouble(3),
-                    Longitude = reader.IsDBNull(4) ? null : reader.GetDouble(4),
-                    SpotName = reader.IsDBNull(5) ? null : reader.GetString(5),
-                    Description = reader.IsDBNull(6) ? null : reader.GetString(6)
-                });
-            }
+                using var connection = new SqliteConnection(GetConnectionString());
+                await connection.OpenAsync();
 
-            return manholeLocations;
+                var command = connection.CreateCommand();
+                command.CommandText = "SELECT * FROM ManholeLocations WHERE CardId = @cardId";
+                command.Parameters.AddWithValue("@cardId", cardId);
+
+                using var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    manholeLocations.Add(new ManholeLocation
+                    {
+                        RelationId = reader.GetInt32(0),
+                        LocationId = reader.GetInt32(1),
+                        CardId = reader.GetInt32(2),
+                        Latitude = reader.IsDBNull(3) ? null : reader.GetDouble(3),
+                        Longitude = reader.IsDBNull(4) ? null : reader.GetDouble(4),
+                        SpotName = reader.IsDBNull(5) ? null : reader.GetString(5),
+                        Description = reader.IsDBNull(6) ? null : reader.GetString(6)
+                    });
+                }
+
+                _logger?.LogDebug(
+                    "マンホール設置場所取得: CardId={CardId}={LocationCount} 件",
+                    cardId,
+                    manholeLocations.Count);
+                return manholeLocations;
+            }
+            catch (SqliteException ex)
+            {
+                _logger?.LogError(
+                    ex,
+                    "マンホール設置場所取得中に SqliteException が発生しました。CardId={CardId}",
+                    cardId);
+                throw;
+            }
         }
 
         /// <summary>
@@ -563,25 +787,41 @@ namespace ManholeCardManager.Services
         /// <returns>挿入されたRelationId</returns>
         public async Task<int> InsertManholeLocationAsync(ManholeLocation manholeLocation)
         {
-            using var connection = new SqliteConnection(GetConnectionString());
-            await connection.OpenAsync();
+            try
+            {
+                using var connection = new SqliteConnection(GetConnectionString());
+                await connection.OpenAsync();
 
-            var command = connection.CreateCommand();
-            command.CommandText = @"
+                var command = connection.CreateCommand();
+                command.CommandText = @"
                 INSERT INTO ManholeLocations (LocationId, CardId, Latitude, Longitude, SpotName, Description)
                 VALUES (@locationId, @cardId, @latitude, @longitude, @spotName, @description);
                 SELECT last_insert_rowid();
             ";
 
-            command.Parameters.AddWithValue("@locationId", manholeLocation.LocationId);
-            command.Parameters.AddWithValue("@cardId", manholeLocation.CardId);
-            command.Parameters.AddWithValue("@latitude", (object?)manholeLocation.Latitude ?? DBNull.Value);
-            command.Parameters.AddWithValue("@longitude", (object?)manholeLocation.Longitude ?? DBNull.Value);
-            command.Parameters.AddWithValue("@spotName", (object?)manholeLocation.SpotName ?? DBNull.Value);
-            command.Parameters.AddWithValue("@description", (object?)manholeLocation.Description ?? DBNull.Value);
+                command.Parameters.AddWithValue("@locationId", manholeLocation.LocationId);
+                command.Parameters.AddWithValue("@cardId", manholeLocation.CardId);
+                command.Parameters.AddWithValue("@latitude", (object?)manholeLocation.Latitude ?? DBNull.Value);
+                command.Parameters.AddWithValue("@longitude", (object?)manholeLocation.Longitude ?? DBNull.Value);
+                command.Parameters.AddWithValue("@spotName", (object?)manholeLocation.SpotName ?? DBNull.Value);
+                command.Parameters.AddWithValue("@description", (object?)manholeLocation.Description ?? DBNull.Value);
 
-            var result = await command.ExecuteScalarAsync();
-            return Convert.ToInt32(result);
+                var result = await command.ExecuteScalarAsync();
+                var insertedId = Convert.ToInt32(result);
+                _logger?.LogInformation(
+                    "マンホール設置場所挿入: RelationId={RelationId}, CardId={CardId}",
+                    insertedId,
+                    manholeLocation.CardId);
+                return insertedId;
+            }
+            catch (SqliteException ex)
+            {
+                _logger?.LogError(
+                    ex,
+                    "マンホール設置場所挿入中に SqliteException が発生しました。CardId={CardId}",
+                    manholeLocation.CardId);
+                throw;
+            }
         }
 
         /// <summary>
@@ -591,11 +831,13 @@ namespace ManholeCardManager.Services
         /// <returns>更新された行数</returns>
         public async Task<int> UpdateManholeLocationAsync(ManholeLocation manholeLocation)
         {
-            using var connection = new SqliteConnection(GetConnectionString());
-            await connection.OpenAsync();
+            try
+            {
+                using var connection = new SqliteConnection(GetConnectionString());
+                await connection.OpenAsync();
 
-            var command = connection.CreateCommand();
-            command.CommandText = @"
+                var command = connection.CreateCommand();
+                command.CommandText = @"
                 UPDATE ManholeLocations
                 SET LocationId = @locationId,
                     CardId = @cardId,
@@ -606,15 +848,29 @@ namespace ManholeCardManager.Services
                 WHERE RelationId = @relationId
             ";
 
-            command.Parameters.AddWithValue("@relationId", manholeLocation.RelationId);
-            command.Parameters.AddWithValue("@locationId", manholeLocation.LocationId);
-            command.Parameters.AddWithValue("@cardId", manholeLocation.CardId);
-            command.Parameters.AddWithValue("@latitude", (object?)manholeLocation.Latitude ?? DBNull.Value);
-            command.Parameters.AddWithValue("@longitude", (object?)manholeLocation.Longitude ?? DBNull.Value);
-            command.Parameters.AddWithValue("@spotName", (object?)manholeLocation.SpotName ?? DBNull.Value);
-            command.Parameters.AddWithValue("@description", (object?)manholeLocation.Description ?? DBNull.Value);
+                command.Parameters.AddWithValue("@relationId", manholeLocation.RelationId);
+                command.Parameters.AddWithValue("@locationId", manholeLocation.LocationId);
+                command.Parameters.AddWithValue("@cardId", manholeLocation.CardId);
+                command.Parameters.AddWithValue("@latitude", (object?)manholeLocation.Latitude ?? DBNull.Value);
+                command.Parameters.AddWithValue("@longitude", (object?)manholeLocation.Longitude ?? DBNull.Value);
+                command.Parameters.AddWithValue("@spotName", (object?)manholeLocation.SpotName ?? DBNull.Value);
+                command.Parameters.AddWithValue("@description", (object?)manholeLocation.Description ?? DBNull.Value);
 
-            return await command.ExecuteNonQueryAsync();
+                var result = await command.ExecuteNonQueryAsync();
+                _logger?.LogInformation(
+                    "マンホール設置場所更新: RelationId={RelationId}（更新行数={RowCount}）",
+                    manholeLocation.RelationId,
+                    result);
+                return result;
+            }
+            catch (SqliteException ex)
+            {
+                _logger?.LogError(
+                    ex,
+                    "マンホール設置場所更新中に SqliteException が発生しました。RelationId={RelationId}",
+                    manholeLocation.RelationId);
+                throw;
+            }
         }
 
         /// <summary>
@@ -624,14 +880,30 @@ namespace ManholeCardManager.Services
         /// <returns>削除された行数</returns>
         public async Task<int> DeleteManholeLocationAsync(int relationId)
         {
-            using var connection = new SqliteConnection(GetConnectionString());
-            await connection.OpenAsync();
+            try
+            {
+                using var connection = new SqliteConnection(GetConnectionString());
+                await connection.OpenAsync();
 
-            var command = connection.CreateCommand();
-            command.CommandText = "DELETE FROM ManholeLocations WHERE RelationId = @relationId";
-            command.Parameters.AddWithValue("@relationId", relationId);
+                var command = connection.CreateCommand();
+                command.CommandText = "DELETE FROM ManholeLocations WHERE RelationId = @relationId";
+                command.Parameters.AddWithValue("@relationId", relationId);
 
-            return await command.ExecuteNonQueryAsync();
+                var result = await command.ExecuteNonQueryAsync();
+                _logger?.LogInformation(
+                    "マンホール設置場所削除: RelationId={RelationId}（削除行数={RowCount}）",
+                    relationId,
+                    result);
+                return result;
+            }
+            catch (SqliteException ex)
+            {
+                _logger?.LogError(
+                    ex,
+                    "マンホール設置場所削除中に SqliteException が発生しました。RelationId={RelationId}",
+                    relationId);
+                throw;
+            }
         }
 
         /// <summary>
@@ -640,33 +912,39 @@ namespace ManholeCardManager.Services
         public async Task<List<ManholeCard>> GetCardsByLocationAsync(int locationId)
         {
             var cards = new List<ManholeCard>();
-            using var connection = new SqliteConnection(GetConnectionString());
-            await connection.OpenAsync();
+            try
+            {
+                using var connection = new SqliteConnection(GetConnectionString());
+                await connection.OpenAsync();
 
-            var command = connection.CreateCommand();
-            command.CommandText = @"
+                var command = connection.CreateCommand();
+                command.CommandText = @"
                 SELECT * FROM Cards c
                 INNER JOIN Locations l ON c.CardId = l.CardId
                 WHERE l.LocationId = @locationId
             ";
-            command.Parameters.AddWithValue("@locationId", locationId);
+                command.Parameters.AddWithValue("@locationId", locationId);
 
-            using var reader = await command.ExecuteReaderAsync();
-            while (await reader.ReadAsync())
-            {
-                cards.Add(new ManholeCard
+                using var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
                 {
-                    CardId = reader.GetInt32(0),
-                    LocationId = reader.IsDBNull(1) ? null : reader.GetInt32(1),
-                    DesignImagePath = reader.IsDBNull(2) ? null : reader.GetString(2),
-                    SeriesNumber = reader.GetInt32(3),
-                    IssuedDate = reader.IsDBNull(4) ? null : DateTimeOffset.Parse(reader.GetString(4)),
-                    CreatedDate = DateTimeOffset.Parse(reader.GetString(5)),
-                    UpdatedDate = DateTimeOffset.Parse(reader.GetString(6))
-                });
-            }
+                    cards.Add(ReadManholeCard(reader));
+                }
 
-            return cards;
+                _logger?.LogDebug(
+                    "配布場所別カード取得: LocationId={LocationId}={CardCount} 件",
+                    locationId,
+                    cards.Count);
+                return cards;
+            }
+            catch (SqliteException ex)
+            {
+                _logger?.LogError(
+                    ex,
+                    "配布場所別カード取得中に SqliteException が発生しました。LocationId={LocationId}",
+                    locationId);
+                throw;
+            }
         }
 
         /// <summary>
@@ -674,26 +952,38 @@ namespace ManholeCardManager.Services
         /// </summary>
         public async Task InsertAcquisitionHistoryAsync(AcquisitionHistory history)
         {
-            using var connection = new SqliteConnection(GetConnectionString());
-            await connection.OpenAsync();
+            try
+            {
+                using var connection = new SqliteConnection(GetConnectionString());
+                await connection.OpenAsync();
 
-            var command = connection.CreateCommand();
-            command.CommandText = @"
+                var command = connection.CreateCommand();
+                command.CommandText = @"
                 INSERT INTO AcquisitionHistory (CardId, IsAcquired, AcquisitionDate, LocationId, Notes, CreatedDate)
                 VALUES (@cardId, @isAcquired, @acquisitionDate, @locationId, @notes, @createdDate)
             ";
 
-            command.Parameters.AddWithValue("@cardId", history.CardId);
-            command.Parameters.AddWithValue("@isAcquired", history.IsAcquired ? 1 : 0);
-            command.Parameters.AddWithValue("@acquisitionDate", history.AcquisitionDate.ToString("O"));
-            command.Parameters.AddWithValue("@locationId", (object?)history.LocationId ?? DBNull.Value);
-            command.Parameters.AddWithValue("@notes", (object?)history.Notes ?? DBNull.Value);
-            command.Parameters.AddWithValue("@createdDate", history.CreatedDate.ToString("O"));
+                command.Parameters.AddWithValue("@cardId", history.CardId);
+                command.Parameters.AddWithValue("@isAcquired", history.IsAcquired ? 1 : 0);
+                command.Parameters.AddWithValue("@acquisitionDate", history.AcquisitionDate.ToString("O"));
+                command.Parameters.AddWithValue("@locationId", (object?)history.LocationId ?? DBNull.Value);
+                command.Parameters.AddWithValue("@notes", (object?)history.Notes ?? DBNull.Value);
+                command.Parameters.AddWithValue("@createdDate", history.CreatedDate.ToString("O"));
 
-            await command.ExecuteNonQueryAsync();
-
-            System.Diagnostics.Debug.WriteLine(
-                $"InsertAcquisitionHistoryAsync: CardId={history.CardId}, IsAcquired={history.IsAcquired}");
+                await command.ExecuteNonQueryAsync();
+                _logger?.LogInformation(
+                    "取得履歴挿入: CardId={CardId}, IsAcquired={IsAcquired}",
+                    history.CardId,
+                    history.IsAcquired);
+            }
+            catch (SqliteException ex)
+            {
+                _logger?.LogError(
+                    ex,
+                    "取得履歴挿入中に SqliteException が発生しました。CardId={CardId}",
+                    history.CardId);
+                throw;
+            }
         }
 
         /// <summary>
@@ -719,7 +1009,7 @@ namespace ManholeCardManager.Services
                 using var reader = await command.ExecuteReaderAsync();
                 if (await reader.ReadAsync())
                 {
-                    return new AcquisitionHistory
+                    var history = new AcquisitionHistory
                     {
                         HistoryId = reader.GetInt32(0),
                         CardId = reader.GetInt32(1),
@@ -729,12 +1019,19 @@ namespace ManholeCardManager.Services
                         Notes = reader.IsDBNull(5) ? null : reader.GetString(5),
                         CreatedDate = DateTimeOffset.Parse(reader.GetString(6))
                     };
+                    _logger?.LogDebug(
+                        "取得履歴読み込み: CardId={CardId}, IsAcquired={IsAcquired}",
+                        history.CardId,
+                        history.IsAcquired);
+                    return history;
                 }
             }
-            catch (Exception ex)
+            catch (SqliteException ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error reading AcquisitionHistory: {ex.Message}");
-                System.Diagnostics.Debug.WriteLine("This might be due to missing IsAcquired column. Will return null.");
+                _logger?.LogWarning(
+                    ex,
+                    "取得履歴読み込み中に SqliteException が発生しました。CardId={CardId}",
+                    cardId);
             }
 
             return null;
@@ -748,34 +1045,46 @@ namespace ManholeCardManager.Services
         /// <returns>新しい取得ステータス</returns>
         public async Task<bool> ToggleCardAcquisitionStatusAsync(int cardId, int? locationId = null)
         {
-            using var connection = new SqliteConnection(GetConnectionString());
-            await connection.OpenAsync();
-
-            var existingHistory = await GetAcquisitionHistoryAsync(cardId);
-            bool newStatus;
-
-            if (existingHistory == null)
+            try
             {
-                newStatus = true;
+                using var connection = new SqliteConnection(GetConnectionString());
+                await connection.OpenAsync();
+
+                var existingHistory = await GetAcquisitionHistoryAsync(cardId);
+                bool newStatus;
+
+                if (existingHistory == null)
+                {
+                    newStatus = true;
+                }
+                else
+                {
+                    newStatus = !existingHistory.IsAcquired;
+                }
+
+                await InsertAcquisitionHistoryAsync(new AcquisitionHistory
+                {
+                    CardId = cardId,
+                    IsAcquired = newStatus,
+                    AcquisitionDate = DateTimeOffset.Now,
+                    LocationId = locationId ?? existingHistory?.LocationId,
+                    CreatedDate = DateTimeOffset.Now
+                });
+
+                _logger?.LogInformation(
+                    "カード取得ステータス変更: CardId={CardId}, NewStatus={NewStatus}",
+                    cardId,
+                    newStatus);
+                return newStatus;
             }
-            else
+            catch (SqliteException ex)
             {
-                newStatus = !existingHistory.IsAcquired;
+                _logger?.LogError(
+                    ex,
+                    "カード取得ステータス変更中に SqliteException が発生しました。CardId={CardId}",
+                    cardId);
+                throw;
             }
-
-            await InsertAcquisitionHistoryAsync(new AcquisitionHistory
-            {
-                CardId = cardId,
-                IsAcquired = newStatus,
-                AcquisitionDate = DateTimeOffset.Now,
-                LocationId = locationId ?? existingHistory?.LocationId,
-                CreatedDate = DateTimeOffset.Now
-            });
-
-            System.Diagnostics.Debug.WriteLine(
-                $"ToggleCardAcquisitionStatusAsync: CardId={cardId}, NewStatus={newStatus}");
-
-            return newStatus;
         }
 
         /// <summary>
@@ -785,11 +1094,13 @@ namespace ManholeCardManager.Services
         {
             var locations = new Dictionary<int, DistributionLocationWithCards>();
 
-            using var connection = new SqliteConnection(GetConnectionString());
-            await connection.OpenAsync();
+            try
+            {
+                using var connection = new SqliteConnection(GetConnectionString());
+                await connection.OpenAsync();
 
-            var command = connection.CreateCommand();
-            command.CommandText = @"
+                var command = connection.CreateCommand();
+                command.CommandText = @"
                 SELECT 
                     l.LocationId, 
                     l.LocationName,
@@ -819,53 +1130,57 @@ namespace ManholeCardManager.Services
                 ORDER BY l.LocationName, c.SeriesNumber
             ";
 
-            using var reader = await command.ExecuteReaderAsync();
-            var cardCount = 0;
-            while (await reader.ReadAsync())
-            {
-                var locationId = reader.GetInt32(0);
-                var cardId = reader.GetInt32(7);
-                var isAcquired = reader.GetInt32(11) == 1;
-                var acquisitionDate = reader.IsDBNull(12) ? (DateTimeOffset?)null : DateTimeOffset.Parse(reader.GetString(12));
-                var notes = reader.IsDBNull(13) ? null : reader.GetString(13);
-
-                if (!locations.ContainsKey(locationId))
+                using var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
                 {
-                    locations[locationId] = new DistributionLocationWithCards
+                    var locationId = reader.GetInt32(DIST_LOCATION_ID_INDEX);
+                    var cardId = reader.GetInt32(DIST_CARD_ID_INDEX);
+                    var isAcquired = reader.GetInt32(DIST_IS_ACQUIRED_INDEX) == 1;
+                    var acquisitionDate = reader.IsDBNull(DIST_ACQUISITION_DATE_INDEX) ? (DateTimeOffset?)null : DateTimeOffset.Parse(reader.GetString(DIST_ACQUISITION_DATE_INDEX));
+                    var notes = reader.IsDBNull(DIST_NOTES_INDEX) ? null : reader.GetString(DIST_NOTES_INDEX);
+
+                    if (!locations.ContainsKey(locationId))
                     {
-                        LocationId = locationId,
-                        LocationName = reader.GetString(1),
-                        Address = reader.IsDBNull(2) ? null : reader.GetString(2),
-                        Prefecture = reader.IsDBNull(3) ? null : reader.GetString(3),
-                        Municipality = reader.IsDBNull(4) ? null : reader.GetString(4),
-                        Description = reader.IsDBNull(5) ? null : reader.GetString(5)
-                    };
+                        locations[locationId] = new DistributionLocationWithCards
+                        {
+                            LocationId = locationId,
+                            LocationName = reader.GetString(DIST_LOCATION_NAME_INDEX),
+                            Address = reader.IsDBNull(DIST_ADDRESS_INDEX) ? null : reader.GetString(DIST_ADDRESS_INDEX),
+                            Prefecture = reader.IsDBNull(DIST_PREFECTURE_INDEX) ? null : reader.GetString(DIST_PREFECTURE_INDEX),
+                            Municipality = reader.IsDBNull(DIST_MUNICIPALITY_INDEX) ? null : reader.GetString(DIST_MUNICIPALITY_INDEX),
+                            Description = reader.IsDBNull(DIST_DESCRIPTION_INDEX) ? null : reader.GetString(DIST_DESCRIPTION_INDEX)
+                        };
+                    }
+
+                    locations[locationId].DistributedCards.Add(new CardWithAcquisitionStatus
+                    {
+                        CardId = cardId,
+                        DesignImagePath = reader.IsDBNull(DIST_DESIGN_IMAGE_PATH_INDEX) ? null : reader.GetString(DIST_DESIGN_IMAGE_PATH_INDEX),
+                        SeriesNumber = reader.GetInt32(DIST_SERIES_NUMBER_INDEX),
+                        IssuedDate = reader.IsDBNull(DIST_ISSUED_DATE_INDEX) ? null : DateTimeOffset.Parse(reader.GetString(DIST_ISSUED_DATE_INDEX)),
+                        Prefecture = reader.IsDBNull(DIST_PREFECTURE_INDEX) ? null : reader.GetString(DIST_PREFECTURE_INDEX),
+                        Municipality = reader.IsDBNull(DIST_MUNICIPALITY_INDEX) ? null : reader.GetString(DIST_MUNICIPALITY_INDEX),
+                        Description = reader.IsDBNull(DIST_DESCRIPTION_INDEX) ? null : reader.GetString(DIST_DESCRIPTION_INDEX),
+                        StockStatus = reader.IsDBNull(DIST_STOCK_STATUS_INDEX) ? null : reader.GetString(DIST_STOCK_STATUS_INDEX),
+                        IsAcquired = isAcquired,
+                        AcquisitionDate = acquisitionDate,
+                        Notes = notes
+                    });
                 }
 
-                locations[locationId].DistributedCards.Add(new CardWithAcquisitionStatus
-                {
-                    CardId = cardId,
-                    DesignImagePath = reader.IsDBNull(8) ? null : reader.GetString(8),
-                    SeriesNumber = reader.GetInt32(9),
-                    IssuedDate = reader.IsDBNull(10) ? null : DateTimeOffset.Parse(reader.GetString(10)),
-                    Prefecture = reader.IsDBNull(3) ? null : reader.GetString(3),
-                    Municipality = reader.IsDBNull(4) ? null : reader.GetString(4),
-                    Description = reader.IsDBNull(5) ? null : reader.GetString(5),
-                    StockStatus = reader.IsDBNull(6) ? null : reader.GetString(6),
-                    IsAcquired = isAcquired,
-                    AcquisitionDate = acquisitionDate,
-                    Notes = notes
-                });
-                
-                cardCount++;
-                System.Diagnostics.Debug.WriteLine(
-                    $"Loaded CardId={cardId}, LocationId={locationId}, IsAcquired={isAcquired}, AcquisitionDate={acquisitionDate:O}, Notes={notes}");
+                _logger?.LogInformation(
+                    "全配布場所取得: {LocationCount} 件（カード総数={CardCount} 件）",
+                    locations.Count,
+                    locations.Values.Sum(l => l.DistributedCards.Count));
+                return locations.Values.ToList();
             }
-
-            System.Diagnostics.Debug.WriteLine(
-                $"GetAllDistributionLocationsWithCardsAsync: Loaded {locations.Count} locations with {cardCount} total cards");
-
-            return locations.Values.ToList();
+            catch (SqliteException ex)
+            {
+                _logger?.LogError(
+                    ex,
+                    "全配布場所取得中に SqliteException が発生しました。");
+                throw;
+            }
         }
 
         /// <summary>
@@ -875,6 +1190,8 @@ namespace ManholeCardManager.Services
         {
             try
             {
+                _logger?.LogInformation("サンプルデータ挿入を開始します。");
+
                 using var connection = new SqliteConnection(GetConnectionString());
                 await connection.OpenAsync();
 
@@ -884,11 +1201,10 @@ namespace ManholeCardManager.Services
                 var count = Convert.ToInt32(await checkCommand.ExecuteScalarAsync());
                 if (count > 0)
                 {
-                    System.Diagnostics.Debug.WriteLine("Sample data already exists, skipping insertion");
+                    _logger?.LogInformation("サンプルデータは既に存在します。スキップします。");
                     return;
                 }
 
-                System.Diagnostics.Debug.WriteLine("Inserting sample data...");
                 var now = DateTimeOffset.Now.ToString("O");
 
                 // サンプル配布場所とカードを追加（1件ずつ）
@@ -899,7 +1215,6 @@ namespace ManholeCardManager.Services
                 ";
                 location1.Parameters.AddWithValue("@now", now);
                 await location1.ExecuteNonQueryAsync();
-                System.Diagnostics.Debug.WriteLine("Location 1 inserted");
 
                 var location2 = connection.CreateCommand();
                 location2.CommandText = @"
@@ -908,7 +1223,6 @@ namespace ManholeCardManager.Services
                 ";
                 location2.Parameters.AddWithValue("@now", now);
                 await location2.ExecuteNonQueryAsync();
-                System.Diagnostics.Debug.WriteLine("Location 2 inserted");
 
                 var location3 = connection.CreateCommand();
                 location3.CommandText = @"
@@ -917,7 +1231,6 @@ namespace ManholeCardManager.Services
                 ";
                 location3.Parameters.AddWithValue("@now", now);
                 await location3.ExecuteNonQueryAsync();
-                System.Diagnostics.Debug.WriteLine("Location 3 inserted");
 
                 // サンプルカードを追加（LocationIdを設定）
                 var card1 = connection.CreateCommand();
@@ -927,7 +1240,6 @@ namespace ManholeCardManager.Services
                 ";
                 card1.Parameters.AddWithValue("@now", now);
                 await card1.ExecuteNonQueryAsync();
-                System.Diagnostics.Debug.WriteLine("Card 1 inserted");
 
                 var card2 = connection.CreateCommand();
                 card2.CommandText = @"
@@ -936,7 +1248,6 @@ namespace ManholeCardManager.Services
                 ";
                 card2.Parameters.AddWithValue("@now", now);
                 await card2.ExecuteNonQueryAsync();
-                System.Diagnostics.Debug.WriteLine("Card 2 inserted");
 
                 var card3 = connection.CreateCommand();
                 card3.CommandText = @"
@@ -945,13 +1256,15 @@ namespace ManholeCardManager.Services
                 ";
                 card3.Parameters.AddWithValue("@now", now);
                 await card3.ExecuteNonQueryAsync();
-                System.Diagnostics.Debug.WriteLine("Card 3 inserted");
 
-                System.Diagnostics.Debug.WriteLine("Sample data inserted successfully");
+                _logger?.LogInformation(
+                    "サンプルデータ挿入完了: 3つの配布場所と3枚のカードを追加しました。");
             }
-            catch (Exception ex)
+            catch (SqliteException ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error inserting sample data: {ex.Message}");
+                _logger?.LogError(
+                    ex,
+                    "サンプルデータ挿入中に SqliteException が発生しました。");
                 throw;
             }
         }
@@ -969,6 +1282,10 @@ namespace ManholeCardManager.Services
         {
             try
             {
+                _logger?.LogInformation(
+                    "カード取得履歴を更新または追加します: CardId={CardId}",
+                    cardId);
+
                 using var connection = new SqliteConnection(GetConnectionString());
                 await connection.OpenAsync();
 
@@ -976,7 +1293,8 @@ namespace ManholeCardManager.Services
                 var checkQuery = "SELECT COUNT(*) FROM AcquisitionHistory WHERE CardId = @cardId";
                 using var checkCommand = new SqliteCommand(checkQuery, connection);
                 checkCommand.Parameters.AddWithValue("@cardId", cardId);
-                var exists = (long)await checkCommand.ExecuteScalarAsync() > 0;
+                var result = await checkCommand.ExecuteScalarAsync();
+                var exists = result != null && (long)result > 0;
 
                 if (exists)
                 {
@@ -1002,9 +1320,9 @@ namespace ManholeCardManager.Services
                         notes ?? (object)DBNull.Value);
 
                     await updateCommand.ExecuteNonQueryAsync();
-
-                    System.Diagnostics.Debug.WriteLine(
-                        $"UpdateAcquisitionHistoryAsync: Updated existing record for CardId = {cardId}");
+                    _logger?.LogInformation(
+                        "カード取得履歴を更新しました: CardId={CardId}",
+                        cardId);
                 }
                 else
                 {
@@ -1027,19 +1345,17 @@ namespace ManholeCardManager.Services
                         DateTimeOffset.UtcNow.ToString("O"));
 
                     await insertCommand.ExecuteNonQueryAsync();
-
-                    System.Diagnostics.Debug.WriteLine(
-                        $"UpdateAcquisitionHistoryAsync: Inserted new record for CardId = {cardId}");
+                    _logger?.LogInformation(
+                        "カード取得履歴を新規追加しました: CardId={CardId}",
+                        cardId);
                 }
-
-                System.Diagnostics.Debug.WriteLine(
-                    $"UpdateAcquisitionHistoryAsync: Data saved for CardId = {cardId}, AcquisitionDate = {acquisitionDate:O}, Notes = {notes}");
             }
-            catch (Exception ex)
+            catch (SqliteException ex)
             {
-                System.Diagnostics.Debug.WriteLine(
-                    $"Error updating acquisition history: {ex.Message}");
-                System.Diagnostics.Debug.WriteLine($"  Stack trace: {ex.StackTrace}");
+                _logger?.LogError(
+                    ex,
+                    "カード取得履歴更新中に SqliteException が発生しました。CardId={CardId}",
+                    cardId);
                 throw;
             }
         }

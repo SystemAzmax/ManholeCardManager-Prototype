@@ -15,7 +15,25 @@ namespace ManholeCardDataScraper.Services
     /// </summary>
     public class WebScraperService
     {
-        private readonly HttpClient _httpClient;
+        /// <summary>
+        /// HttpClientのタイムアウト時間（秒）
+        /// Webスクレイピングは時間がかかる場合があるため、画像取得より長めに設定
+        /// </summary>
+        private const int HTTP_CLIENT_TIMEOUT_SECONDS = 60;
+        
+        /// <summary>
+        /// 共有HttpClientインスタンス（シングルトン）
+        /// スレッドセーフな静的フィールドで、アプリケーション全体で共有される。
+        /// HttpClientは再利用することでコネクションプールとDNSキャッシュを活用し、
+        /// パフォーマンスとメモリ効率を向上させる。
+        /// 
+        /// 参考: https://docs.microsoft.com/en-us/dotnet/fundamentals/networking/http/httpclient
+        /// </summary>
+        private static readonly HttpClient _httpClient = new HttpClient 
+        { 
+            Timeout = TimeSpan.FromSeconds(HTTP_CLIENT_TIMEOUT_SECONDS)
+        };
+        
         private const string TARGET_URL = 
             "https://www.gk-p.jp/mhcard/?pref=zenkoku#mhcard_result";
 
@@ -24,9 +42,13 @@ namespace ManholeCardDataScraper.Services
         /// </summary>
         public WebScraperService()
         {
-            _httpClient = new HttpClient();
-            _httpClient.DefaultRequestHeaders.Add("User-Agent",
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64)");
+            // HttpClientはスタティックフィールドで一度だけ作成される
+            // DefaultRequestHeadersは初回のコンストラクタ呼び出しで設定
+            if (!_httpClient.DefaultRequestHeaders.Contains("User-Agent"))
+            {
+                _httpClient.DefaultRequestHeaders.Add("User-Agent",
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64)");
+            }
         }
 
         /// <summary>

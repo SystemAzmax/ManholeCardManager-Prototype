@@ -61,7 +61,10 @@ namespace ManholeCardManager.ViewModels
                 {
                     _searchText = value;
                     OnPropertyChanged(nameof(SearchText));
+                    // Fire-and-forget: UI更新のタイミングで検索を非同期実行
+#pragma warning disable CS4014
                     _ = SearchCards();
+#pragma warning restore CS4014
                 }
             }
         }

@@ -1,6 +1,8 @@
 ﻿using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Data;
 using Microsoft.UI.Xaml.Navigation;
+using Microsoft.Extensions.Logging;
+using ManholeCardManager.Services;
 using System;
 using System.IO;
 using Windows.ApplicationModel;
@@ -18,6 +20,62 @@ namespace ManholeCardManager
     public partial class App : Application
     {
         private Window? _window;
+        private static ILoggerFactory? _loggerFactory;
+
+        /// <summary>
+        /// ロガーファクトリを取得
+        /// </summary>
+        public static ILoggerFactory LoggerFactory
+        {
+            get
+            {
+                if (_loggerFactory == null)
+                {
+                    InitializeLogging();
+                }
+                return _loggerFactory!;
+            }
+        }
+
+        /// <summary>
+        /// ロギングを初期化（コンソール + ファイル出力）
+        /// </summary>
+        private static void InitializeLogging()
+        {
+            // ログディレクトリパスを取得
+            var logDirectory = GetLogDirectory();
+
+            // ロガーファクトリを作成
+            var factory = new LoggerFactory();
+
+            // ファイル出力を追加（メインの出力）
+            factory.AddProvider(new FileLoggerProvider(logDirectory));
+
+            _loggerFactory = factory;
+        }
+
+        /// <summary>
+        /// ログディレクトリパスを取得
+        /// </summary>
+        private static string GetLogDirectory()
+        {
+            try
+            {
+                // UWP環境の場合はApplicationData.Currentを使用
+                var localFolder = Windows.Storage.ApplicationData.Current.LocalFolder.Path;
+                var logsPath = Path.Combine(localFolder, "logs");
+                return logsPath;
+            }
+            catch (InvalidOperationException)
+            {
+                // UWP以外の環境の場合はLocalApplicationDataを使用
+                var localAppData = Environment.GetFolderPath(
+                    Environment.SpecialFolder.LocalApplicationData);
+                var appFolder = Path.Combine(localAppData, "ManholeCardManager");
+                var logsPath = Path.Combine(appFolder, "logs");
+                return logsPath;
+            }
+        }
 
         /// <summary>
         /// Initializes the singleton application object.  This is the first line of authored code
