@@ -109,6 +109,7 @@ namespace ManholeCardManager.Services
                     Latitude REAL,
                     Longitude REAL,
                     Description TEXT,
+                    StockStatus TEXT,
                     CreatedDate TEXT NOT NULL
                 );
 
@@ -130,15 +131,6 @@ namespace ManholeCardManager.Services
                     Notes TEXT,
                     CreatedDate TEXT NOT NULL
                 );
-
-                CREATE TABLE IF NOT EXISTS DistributionLocations (
-                    RelationId INTEGER PRIMARY KEY AUTOINCREMENT,
-                    LocationId INTEGER NOT NULL,
-                    CardId INTEGER NOT NULL,
-                    DistributionTime TEXT,
-                    StockStatus TEXT,
-                    CreatedDate TEXT NOT NULL
-                );
             ";
 
             await createTablesCommand.ExecuteNonQueryAsync();
@@ -157,7 +149,6 @@ namespace ManholeCardManager.Services
                 SELECT 
                     (SELECT COUNT(*) FROM Cards) as CardsCount,
                     (SELECT COUNT(*) FROM Locations) as LocationsCount,
-                    (SELECT COUNT(*) FROM DistributionLocations) as DistributionLocationsCount,
                     (SELECT COUNT(*) FROM AcquisitionHistory) as AcquisitionHistoryCount
             ";
 
@@ -167,8 +158,7 @@ namespace ManholeCardManager.Services
                 System.Diagnostics.Debug.WriteLine($"Database Status:");
                 System.Diagnostics.Debug.WriteLine($"  Cards: {reader.GetInt32(0)}");
                 System.Diagnostics.Debug.WriteLine($"  Locations: {reader.GetInt32(1)}");
-                System.Diagnostics.Debug.WriteLine($"  DistributionLocations: {reader.GetInt32(2)}");
-                System.Diagnostics.Debug.WriteLine($"  AcquisitionHistory: {reader.GetInt32(3)}");
+                System.Diagnostics.Debug.WriteLine($"  AcquisitionHistory: {reader.GetInt32(2)}");
                 System.Diagnostics.Debug.WriteLine($"  Database Path: {_databasePath}");
             }
         }
@@ -433,7 +423,7 @@ namespace ManholeCardManager.Services
                 locations.Add(new CardLocation
                 {
                     LocationId = reader.GetInt32(0),
-                    CardId = reader.GetInt32(1),
+                    CardId = reader.IsDBNull(1) ? 0 : reader.GetInt32(1),
                     LocationName = reader.GetString(2),
                     Prefecture = reader.IsDBNull(3) ? null : reader.GetString(3),
                     Municipality = reader.IsDBNull(4) ? null : reader.GetString(4),
@@ -441,7 +431,8 @@ namespace ManholeCardManager.Services
                     Latitude = reader.IsDBNull(6) ? null : reader.GetDouble(6),
                     Longitude = reader.IsDBNull(7) ? null : reader.GetDouble(7),
                     Description = reader.IsDBNull(8) ? null : reader.GetString(8),
-                    CreatedDate = DateTimeOffset.Parse(reader.GetString(9))
+                    StockStatus = reader.IsDBNull(9) ? null : reader.GetString(9),
+                    CreatedDate = DateTimeOffset.Parse(reader.GetString(10))
                 });
             }
 
@@ -569,63 +560,9 @@ namespace ManholeCardManager.Services
         }
 
         /// <summary>
-        /// 全配布場所を取得
-        /// </summary>
-        public async Task<List<CardDistributionLocation>> GetAllDistributionLocationsAsync()
-        {
-            var distributionLocations = new List<CardDistributionLocation>();
-            using var connection = new SqliteConnection(GetConnectionString());
-            await connection.OpenAsync();
-
-            var command = connection.CreateCommand();
-            command.CommandText = "SELECT * FROM DistributionLocations";
-
-            using var reader = await command.ExecuteReaderAsync();
-            while (await reader.ReadAsync())
-            {
-                distributionLocations.Add(new CardDistributionLocation
-                {
-                    RelationId = reader.GetInt32(0),
-                    LocationId = reader.GetInt32(1),
-                    CardId = reader.GetInt32(2),
-                    DistributionTime = reader.IsDBNull(3) ? null : reader.GetString(3),
-                    StockStatus = reader.IsDBNull(4) ? null : reader.GetString(4),
-                    CreatedDate = DateTimeOffset.Parse(reader.GetString(5))
-                });
-            }
-
-            return distributionLocations;
-        }
-
-        /// <summary>
-        /// 配布場所を追加
-        /// </summary>
-        public async Task<int> InsertDistributionLocationAsync(CardDistributionLocation location)
-        {
-            using var connection = new SqliteConnection(GetConnectionString());
-            await connection.OpenAsync();
-
-            var command = connection.CreateCommand();
-            command.CommandText = @"
-                INSERT INTO DistributionLocations (LocationId, CardId, DistributionTime, StockStatus, CreatedDate)
-                VALUES (@locationId, @cardId, @distributionTime, @stockStatus, @createdDate);
-                SELECT last_insert_rowid();
-            ";
-
-            command.Parameters.AddWithValue("@locationId", location.LocationId);
-            command.Parameters.AddWithValue("@cardId", location.CardId);
-            command.Parameters.AddWithValue("@distributionTime", (object?)location.DistributionTime ?? DBNull.Value);
-            command.Parameters.AddWithValue("@stockStatus", (object?)location.StockStatus ?? DBNull.Value);
-            command.Parameters.AddWithValue("@createdDate", DateTimeOffset.Now.ToString("O"));
-
-            var result = await command.ExecuteScalarAsync();
-            return Convert.ToInt32(result);
-        }
-
-        /// <summary>
         /// 配布場所のカードを取得
         /// </summary>
-        public async Task<List<ManholeCard>> GetCardsByDistributionLocationAsync(int locationId)
+        public async Task<List<ManholeCard>> GetCardsByLocationAsync(int locationId)
         {
             var cards = new List<ManholeCard>();
             using var connection = new SqliteConnection(GetConnectionString());
@@ -633,9 +570,9 @@ namespace ManholeCardManager.Services
 
             var command = connection.CreateCommand();
             command.CommandText = @"
-                SELECT DISTINCT c.* FROM Cards c
-                INNER JOIN DistributionLocations dl ON c.CardId = dl.CardId
-                WHERE dl.LocationId = @locationId
+                SELECT * FROM Cards c
+                INNER JOIN Locations l ON c.CardId = l.CardId
+                WHERE l.LocationId = @locationId
             ";
             command.Parameters.AddWithValue("@locationId", locationId);
 
@@ -727,13 +664,15 @@ namespace ManholeCardManager.Services
                     l.Address,
                     l.Prefecture,
                     l.Municipality,
+                    l.Description,
+                    l.StockStatus,
                     c.CardId, 
                     c.DesignImagePath, 
                     c.SeriesNumber,
+                    c.IssuedDate,
                     ah.CardId as HasAcquired
                 FROM Locations l
-                INNER JOIN DistributionLocations dl ON l.LocationId = dl.LocationId
-                INNER JOIN Cards c ON dl.CardId = c.CardId
+                INNER JOIN Cards c ON l.CardId = c.CardId
                 LEFT JOIN AcquisitionHistory ah ON c.CardId = ah.CardId
                 ORDER BY l.LocationName, c.SeriesNumber
             ";
@@ -752,18 +691,22 @@ namespace ManholeCardManager.Services
                         Address = reader.IsDBNull(2) ? null : reader.GetString(2),
                         Prefecture = reader.IsDBNull(3) ? null : reader.GetString(3),
                         Municipality = reader.IsDBNull(4) ? null : reader.GetString(4),
+                        Description = reader.IsDBNull(5) ? null : reader.GetString(5),
                         DistributedCards = new System.Collections.ObjectModel.ObservableCollection<CardWithAcquisitionStatus>()
                     };
                 }
 
                 locations[locationId].DistributedCards.Add(new CardWithAcquisitionStatus
                 {
-                    CardId = reader.GetInt32(5),
-                    DesignImagePath = reader.IsDBNull(6) ? null : reader.GetString(6),
-                    SeriesNumber = reader.GetInt32(7),
+                    CardId = reader.GetInt32(7),
+                    DesignImagePath = reader.IsDBNull(8) ? null : reader.GetString(8),
+                    SeriesNumber = reader.GetInt32(9),
+                    IssuedDate = reader.IsDBNull(10) ? null : DateTimeOffset.Parse(reader.GetString(10)),
                     Prefecture = reader.IsDBNull(3) ? null : reader.GetString(3),
                     Municipality = reader.IsDBNull(4) ? null : reader.GetString(4),
-                    IsAcquired = !reader.IsDBNull(8)
+                    Description = reader.IsDBNull(5) ? null : reader.GetString(5),
+                    StockStatus = reader.IsDBNull(6) ? null : reader.GetString(6),
+                    IsAcquired = !reader.IsDBNull(11)
                 });
             }
 
@@ -781,40 +724,11 @@ namespace ManholeCardManager.Services
                 using var connection = new SqliteConnection(GetConnectionString());
                 await connection.OpenAsync();
 
-                // DistributionLocationsテーブルが空の場合、既存データから関連を作成
-                var checkDistCommand = connection.CreateCommand();
-                checkDistCommand.CommandText = "SELECT COUNT(*) FROM DistributionLocations";
-                var distCount = Convert.ToInt32(await checkDistCommand.ExecuteScalarAsync());
-                
-                if (distCount == 0)
-                {
-                    System.Diagnostics.Debug.WriteLine("DistributionLocations is empty. Creating relationships from existing data...");
-                    
-                    // CardsとLocationsの既存データから関連を作成
-                    var createRelationsCommand = connection.CreateCommand();
-                    createRelationsCommand.CommandText = @"
-                        INSERT INTO DistributionLocations (LocationId, CardId, CreatedDate)
-                        SELECT 
-                            l.LocationId,
-                            c.CardId,
-                            @now
-                        FROM Cards c
-                        INNER JOIN Locations l ON c.CardId = l.CardId
-                        WHERE l.CardId IS NOT NULL
-                    ";
-                    createRelationsCommand.Parameters.AddWithValue("@now", DateTimeOffset.Now.ToString("O"));
-                    var insertedCount = await createRelationsCommand.ExecuteNonQueryAsync();
-                    System.Diagnostics.Debug.WriteLine($"Created {insertedCount} distribution location relationships");
-                    
-                    await LogDatabaseStatusAsync(connection);
-                    return;
-                }
-
                 // データが既に存在する場合はスキップ
                 var checkCommand = connection.CreateCommand();
                 checkCommand.CommandText = "SELECT COUNT(*) FROM Cards";
                 var count = Convert.ToInt32(await checkCommand.ExecuteScalarAsync());
-                if (count > 0 && distCount > 0)
+                if (count > 0)
                 {
                     System.Diagnostics.Debug.WriteLine("Sample data already exists, skipping insertion");
                     return;
@@ -823,11 +737,11 @@ namespace ManholeCardManager.Services
                 System.Diagnostics.Debug.WriteLine("Inserting sample data...");
                 var now = DateTimeOffset.Now.ToString("O");
 
-                // サンプル配布場所を追加（1件ずつ）
+                // サンプル配布場所とカードを追加（1件ずつ）
                 var location1 = connection.CreateCommand();
                 location1.CommandText = @"
-                    INSERT INTO Locations (LocationName, Prefecture, Municipality, Address, CreatedDate)
-                    VALUES ('東京都庁', '東京都', '新宿区', '東京都新宿区西新宿2-8-1', @now)
+                    INSERT INTO Locations (LocationName, Prefecture, Municipality, Address, Description, StockStatus, CreatedDate)
+                    VALUES ('東京都庁', '東京都', '新宿区', '東京都新宿区西新宿2-8-1', '平日 9:00-17:00', 'https://example.com/stock/tokyo', @now)
                 ";
                 location1.Parameters.AddWithValue("@now", now);
                 await location1.ExecuteNonQueryAsync();
@@ -835,27 +749,26 @@ namespace ManholeCardManager.Services
 
                 var location2 = connection.CreateCommand();
                 location2.CommandText = @"
-                    INSERT INTO Locations (LocationName, Prefecture, Municipality, Address, CreatedDate)
-                    VALUES ('大阪市役所', '大阪府', '大阪市', '大阪府大阪市北区中之島1-3-20', @now)
+                    INSERT INTO Locations (LocationName, Prefecture, Municipality, Address, Description, StockStatus, CreatedDate)
+                    VALUES ('大阪市役所', '大阪府', '大阪市', '大阪府大阪市北区中之島1-3-20', '月～金 8:30-17:30', 'https://example.com/stock/osaka', @now)
                 ";
                 location2.Parameters.AddWithValue("@now", now);
                 await location2.ExecuteNonQueryAsync();
-                System.Diagnostics.Debug.WriteLine("Location 2 inserted");
 
                 var location3 = connection.CreateCommand();
                 location3.CommandText = @"
-                    INSERT INTO Locations (LocationName, Prefecture, Municipality, Address, CreatedDate)
-                    VALUES ('札幌市役所', '北海道', '札幌市', '北海道札幌市中央区北1条西2丁目', @now)
+                    INSERT INTO Locations (LocationName, Prefecture, Municipality, Address, Description, StockStatus, CreatedDate)
+                    VALUES ('札幌市役所', '北海道', '札幌市', '北海道札幌市中央区北1条西2丁目', '9:00-17:00（土日祝除く）', '在庫なし', @now)
                 ";
                 location3.Parameters.AddWithValue("@now", now);
                 await location3.ExecuteNonQueryAsync();
                 System.Diagnostics.Debug.WriteLine("Location 3 inserted");
 
-                // サンプルカードを追加（1件ずつ）
+                // サンプルカードを追加（LocationIdを設定）
                 var card1 = connection.CreateCommand();
                 card1.CommandText = @"
-                    INSERT INTO Cards (SeriesNumber, CreatedDate, UpdatedDate)
-                    VALUES (1, @now, @now)
+                    INSERT INTO Cards (LocationId, SeriesNumber, CreatedDate, UpdatedDate)
+                    VALUES (1, 1, @now, @now)
                 ";
                 card1.Parameters.AddWithValue("@now", now);
                 await card1.ExecuteNonQueryAsync();
@@ -863,8 +776,8 @@ namespace ManholeCardManager.Services
 
                 var card2 = connection.CreateCommand();
                 card2.CommandText = @"
-                    INSERT INTO Cards (SeriesNumber, CreatedDate, UpdatedDate)
-                    VALUES (1, @now, @now)
+                    INSERT INTO Cards (LocationId, SeriesNumber, CreatedDate, UpdatedDate)
+                    VALUES (2, 1, @now, @now)
                 ";
                 card2.Parameters.AddWithValue("@now", now);
                 await card2.ExecuteNonQueryAsync();
@@ -872,48 +785,18 @@ namespace ManholeCardManager.Services
 
                 var card3 = connection.CreateCommand();
                 card3.CommandText = @"
-                    INSERT INTO Cards (SeriesNumber, CreatedDate, UpdatedDate)
-                    VALUES (2, @now, @now)
+                    INSERT INTO Cards (LocationId, SeriesNumber, CreatedDate, UpdatedDate)
+                    VALUES (3, 2, @now, @now)
                 ";
                 card3.Parameters.AddWithValue("@now", now);
                 await card3.ExecuteNonQueryAsync();
                 System.Diagnostics.Debug.WriteLine("Card 3 inserted");
 
-                // 配布場所とカードの関連を追加（1件ずつ）
-                var dist1 = connection.CreateCommand();
-                dist1.CommandText = @"
-                    INSERT INTO DistributionLocations (LocationId, CardId, CreatedDate)
-                    VALUES (1, 1, @now)
-                ";
-                dist1.Parameters.AddWithValue("@now", now);
-                await dist1.ExecuteNonQueryAsync();
-                System.Diagnostics.Debug.WriteLine("Distribution 1 inserted");
-
-                var dist2 = connection.CreateCommand();
-                dist2.CommandText = @"
-                    INSERT INTO DistributionLocations (LocationId, CardId, CreatedDate)
-                    VALUES (2, 2, @now)
-                ";
-                dist2.Parameters.AddWithValue("@now", now);
-                await dist2.ExecuteNonQueryAsync();
-                System.Diagnostics.Debug.WriteLine("Distribution 2 inserted");
-
-                var dist3 = connection.CreateCommand();
-                dist3.CommandText = @"
-                    INSERT INTO DistributionLocations (LocationId, CardId, CreatedDate)
-                    VALUES (3, 3, @now)
-                ";
-                dist3.Parameters.AddWithValue("@now", now);
-                await dist3.ExecuteNonQueryAsync();
-                System.Diagnostics.Debug.WriteLine("Distribution 3 inserted");
-
                 System.Diagnostics.Debug.WriteLine("Sample data inserted successfully");
-                await LogDatabaseStatusAsync(connection);
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error inserting sample data: {ex.Message}");
-                System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
                 throw;
             }
         }

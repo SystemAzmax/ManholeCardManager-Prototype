@@ -109,4 +109,17 @@
   <mresource name="NotAcquired" type="LTEXT">
     <value>　</value>
   </mresource>
+  <!-- Card Detail Information -->
+  <mresource name="SeriesNumber" type="LTEXT">
+    <value>Series</value>
+  </mresource>
+  <mresource name="Overview" type="LTEXT">
+    <value>Overview</value>
+  </mresource>
+  <mresource name="Prefecture" type="LTEXT">
+    <value>Prefecture</value>
+  </mresource>
+  <mresource name="StockStatus" type="LTEXT">
+    <value>Stock Status</value>
+  </mresource>
 </root>

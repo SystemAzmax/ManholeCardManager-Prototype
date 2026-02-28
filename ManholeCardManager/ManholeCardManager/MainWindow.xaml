@@ -221,21 +221,22 @@
                                                                     FontSize="13"/>
                                                             </StackPanel>
 
-                                                            <!-- 配布時間 -->
+                                                            <!-- 概要 -->
                                                             <StackPanel
                                                                 Grid.Row="0"
                                                                 Grid.Column="1"
                                                                 Spacing="2">
                                                                 <TextBlock
-                                                                    Text="配布時間"
+                                                                    Text="概要"
                                                                     FontSize="11"
                                                                     Foreground="{ThemeResource
                                                                     TextFillColorSecondaryBrush}"
                                                                     FontWeight="Bold"/>
                                                                 <TextBlock
                                                                     Text="{Binding
-                                                                    DistributionTimeDisplay}"
-                                                                    FontSize="13"/>
+                                                                    DescriptionDisplay}"
+                                                                    FontSize="13"
+                                                                    TextWrapping="Wrap"/>
                                                             </StackPanel>
 
                                                             <!-- 都道府県 -->
@@ -270,10 +271,33 @@
                                                                 <StackPanel
                                                                     Orientation="Horizontal"
                                                                     Spacing="5">
+                                                                    <Button
+                                                                        Content="{Binding
+                                                                        StockStatus}"
+                                                                        Tag="{Binding
+                                                                        StockStatus}"
+                                                                        Click="StockStatusLink_Click"
+                                                                        Style="{StaticResource
+                                                                        TextBlockButtonStyle}"
+                                                                        FontSize="13"
+                                                                        Padding="0"
+                                                                        MinWidth="0"
+                                                                        MinHeight="0"
+                                                                        Foreground="{ThemeResource
+                                                                        AccentTextFillColorPrimaryBrush}"
+                                                                        Visibility="{Binding
+                                                                        StockStatus,
+                                                                        Converter={StaticResource
+                                                                        IsUrlConverter}}"/>
                                                                     <TextBlock
                                                                         Text="{Binding
                                                                         StockStatus}"
-                                                                        FontSize="13"/>
+                                                                        FontSize="13"
+                                                                        Visibility="{Binding
+                                                                        StockStatus,
+                                                                        Converter={StaticResource
+                                                                        IsUrlConverter},
+                                                                        ConverterParameter=false}"/>
                                                                     <TextBlock
                                                                         Text="{Binding
                                                                         StockCountDisplay}"

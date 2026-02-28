@@ -53,6 +53,11 @@ namespace ManholeCardManager.Models
         public string? Description { get; set; }
 
         /// <summary>
+        /// 在庫状況
+        /// </summary>
+        public string? StockStatus { get; set; }
+
+        /// <summary>
         /// 登録日時
         /// </summary>
         public DateTimeOffset CreatedDate { get; set; }

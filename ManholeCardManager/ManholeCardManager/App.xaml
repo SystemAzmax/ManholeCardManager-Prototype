@@ -15,6 +15,8 @@
             <!-- コンバーター登録 -->
             <converters:AcquisitionStatusColorConverter
                 x:Key="AcquisitionStatusColorConverter"/>
+            <converters:IsUrlConverter
+                x:Key="IsUrlConverter"/>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

@@ -14,10 +14,9 @@
 | テーブル名 | 説明 |
 |-----------|------|
 | Cards | マンホールカード情報 |
-| Locations | カード配布場所情報（都道府県・市町村を含む） |
+| Locations | カード配布場所情報（都道府県・市町村・在庫状況を含む） |
 | ManholeLocations | マンホール設置場所とカードの関連 |
 | AcquisitionHistory | カード取得履歴 |
-| DistributionLocations | カード配布場所情報 |
 
 ---
 
@@ -45,7 +44,7 @@
 ### 2. Locations（カード配布場所）
 
 カードの配布場所情報を管理するテーブル  
-**都道府県と市町村の情報はこのテーブルで管理されます**
+**都道府県と市町村、在庫状況の情報はこのテーブルで管理されます**
 
 | カラム名 | データ型 | NULL | デフォルト | 説明 |
 |---------|---------|------|-----------|------|
@@ -57,7 +56,8 @@
 | Address | TEXT | NULL | - | 住所 |
 | Latitude | REAL | NULL | - | 緯度 |
 | Longitude | REAL | NULL | - | 経度 |
-| Description | TEXT | NULL | - | 説明 |
+| Description | TEXT | NULL | - | **説明（配布場所の概要・営業時間など）** |
+| StockStatus | TEXT | NULL | - | **在庫状況** |
 | CreatedDate | TEXT | NOT NULL | - | 登録日時（ISO 8601形式） |
 
 **主キー**: LocationId  
@@ -112,26 +112,6 @@
 
 ---
 
-### 5. DistributionLocations（カード配布場所）
-
-カードの配布場所情報を管理するテーブル
-
-| カラム名 | データ型 | NULL | デフォルト | 説明 |
-|---------|---------|------|-----------|------|
-| RelationId | INTEGER | NOT NULL | AUTOINCREMENT | 関連ID（主キー） |
-| LocationId | INTEGER | NOT NULL | - | 配布場所ID（外部キー） |
-| CardId | INTEGER | NOT NULL | - | カードID（外部キー） |
-| DistributionTime | TEXT | NULL | - | 配布時間 |
-| StockStatus | TEXT | NULL | - | 在庫状況 |
-| CreatedDate | TEXT | NOT NULL | - | 登録日時（ISO 8601形式） |
-
-**主キー**: RelationId  
-**外部キー**: 
-- LocationId → Locations(LocationId)
-- CardId → Cards(CardId)
-
----
-
 ## ER図（テキスト表現）
 
 ```
@@ -142,8 +122,6 @@ Cards (1) ────< (N) AcquisitionHistory
                          │ (N)
                          ▼ (1)
                      Locations
-
-Cards (1) ────< (N) DistributionLocations (N) >───── (1) Locations
 ```
 
 ---
@@ -151,7 +129,7 @@ Cards (1) ────< (N) DistributionLocations (N) >───── (1) Locat
 ## 主要な設計ポイント
 
 ### 1. データ正規化
-- **都道府県（Prefecture）と市町村（Municipality）はLocationsテーブルで管理**
+- **都道府県（Prefecture）、市町村（Municipality）、在庫状況（StockStatus）はLocationsテーブルで管理**
 - カードの基本情報と配布場所情報を分離し、第3正規形を実現
 
 ### 2. フィルタ機能
@@ -185,10 +163,6 @@ CREATE INDEX idx_locations_municipality ON Locations(Municipality);
 
 -- AcquisitionHistoryテーブルの検索用
 CREATE INDEX idx_acquisitionhistory_cardid ON AcquisitionHistory(CardId);
-
--- DistributionLocationsテーブルの検索用
-CREATE INDEX idx_distributionlocations_locationid ON DistributionLocations(LocationId);
-CREATE INDEX idx_distributionlocations_cardid ON DistributionLocations(CardId);
 ```
 
 ---
@@ -217,3 +191,4 @@ copy backup_location\manholecard.db "%LocalAppData%\ManholeCardManager\"
 | 2025-01-XX | 1.1.0 | PrefectureとMunicipalityをLocationsテーブルに移動 |
 | 2025-01-XX | 2.0.0 | カテゴリー機能を削除、都道府県・弾数フィルタ機能を実装 |
 | 2025-01-XX | 2.1.0 | 「カード設置場所」を「カード配布場所」に統一 |
+| 2025-01-XX | 3.0.0 | DistributionLocationsテーブル削除、StockStatusをLocationsに統合 |

@@ -46,14 +46,14 @@ namespace ManholeCardManager.Models
         public System.DateTimeOffset? IssuedDate { get; set; }
 
         /// <summary>
-        /// 配布時間
-        /// </summary>
-        public string? DistributionTime { get; set; }
-
-        /// <summary>
         /// 在庫状況
         /// </summary>
         public string? StockStatus { get; set; }
+
+        /// <summary>
+        /// 説明（配布場所の概要）
+        /// </summary>
+        public string? Description { get; set; }
 
         /// <summary>
         /// 所在地表示用（都道府県 / 市町村）
@@ -112,13 +112,13 @@ namespace ManholeCardManager.Models
         }
 
         /// <summary>
-        /// 配布時間表示用
+        /// 概要表示用
         /// </summary>
-        public string DistributionTimeDisplay
+        public string DescriptionDisplay
         {
             get
             {
-                return string.IsNullOrEmpty(DistributionTime) ? "情報なし" : DistributionTime;
+                return string.IsNullOrEmpty(Description) ? "情報なし" : Description;
             }
         }
 
@@ -149,10 +149,5 @@ namespace ManholeCardManager.Models
                 return string.Empty;
             }
         }
-
-        /// <summary>
-        /// 説明
-        /// </summary>
-        public string? Description { get; set; }
     }
 }

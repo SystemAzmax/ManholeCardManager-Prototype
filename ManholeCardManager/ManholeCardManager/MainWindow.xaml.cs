@@ -187,5 +187,49 @@ namespace ManholeCardManager
                 }
             }
         }
+
+        /// <summary>
+        /// 在庫状況リンククリックイベント
+        /// </summary>
+        private async void StockStatusLink_Click(
+            object sender,
+            RoutedEventArgs e)
+        {
+            try
+            {
+                var button = sender as Button;
+                var url = button?.Tag as string;
+
+                System.Diagnostics.Debug.WriteLine(
+                    $"StockStatusLink_Click: URL = {url}");
+
+                if (string.IsNullOrEmpty(url))
+                {
+                    System.Diagnostics.Debug.WriteLine(
+                        "StockStatusLink_Click: URL is empty or null");
+                    return;
+                }
+
+                // URLが正しい形式か確認
+                if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+                {
+                    System.Diagnostics.Debug.WriteLine(
+                        $"StockStatusLink_Click: Invalid URI format: {url}");
+                    return;
+                }
+
+                System.Diagnostics.Debug.WriteLine(
+                    $"StockStatusLink_Click: Opening URL: {uri}");
+
+                var result = await Windows.System.Launcher.LaunchUriAsync(uri);
+                System.Diagnostics.Debug.WriteLine(
+                    $"StockStatusLink_Click: Launch result = {result}");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"Error opening URL: {ex}");
+            }
+        }
     }
 }
