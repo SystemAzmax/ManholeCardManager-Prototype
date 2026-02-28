@@ -17,6 +17,8 @@
                 x:Key="AcquisitionStatusColorConverter"/>
             <converters:IsUrlConverter
                 x:Key="IsUrlConverter"/>
+            <converters:SaveStatusToVisibilityConverter
+                x:Key="SaveStatusToVisibilityConverter"/>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

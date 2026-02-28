@@ -386,5 +386,204 @@ namespace ManholeCardManager
                 System.Diagnostics.Debug.WriteLine($"  Stack trace: {ex.StackTrace}");
             }
         }
+
+        /// <summary>
+        /// 取得日時ピッカーボタンクリックイベント
+        /// </summary>
+        private async void AcquisitionDatePicker_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var button = sender as Button;
+                var card = button?.DataContext as CardWithAcquisitionStatus;
+                if (card == null) return;
+
+                var contentDialog = new ContentDialog
+                {
+                    Title = "取得日時を選択してください",
+                    PrimaryButtonText = "OK",
+                    CloseButtonText = "キャンセル",
+                    DefaultButton = ContentDialogButton.Primary,
+                    XamlRoot = this.Content.XamlRoot
+                };
+
+                var stackPanel = new StackPanel { Spacing = 10 };
+                var now = DateTimeOffset.Now;
+
+                var datePickerLabel = new TextBlock
+                {
+                    Text = "日付",
+                    FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+                    FontSize = 12
+                };
+                var datePicker = new CalendarDatePicker
+                {
+                    Date = card.AcquisitionDate?.DateTime.Date ?? now.Date
+                };
+
+                var timePickerLabel = new TextBlock
+                {
+                    Text = "時刻",
+                    FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+                    FontSize = 12,
+                    Margin = new Thickness(0, 10, 0, 0)
+                };
+                var timePicker = new TimePicker
+                {
+                    Time = card.AcquisitionDate?.DateTime.TimeOfDay ?? now.TimeOfDay,
+                    ClockIdentifier = "24HourClock"
+                };
+
+                stackPanel.Children.Add(datePickerLabel);
+                stackPanel.Children.Add(datePicker);
+                stackPanel.Children.Add(timePickerLabel);
+                stackPanel.Children.Add(timePicker);
+
+                contentDialog.Content = stackPanel;
+
+                var result = await contentDialog.ShowAsync();
+                if (result == ContentDialogResult.Primary)
+                {
+                    if (datePicker.Date.HasValue)
+                    {
+                        var selectedDate = datePicker.Date.Value.DateTime.Date;
+                        var selectedTime = timePicker.Time;
+                        var combinedDateTime = selectedDate.Add(selectedTime);
+
+                        // ISO 8601 拡張形式のタイムゾーン付き日時として設定
+                        var dateTimeOffset = new DateTimeOffset(
+                            combinedDateTime,
+                            TimeZoneInfo.Local.GetUtcOffset(combinedDateTime));
+
+                        card.AcquisitionDate = dateTimeOffset;
+
+                        // 未保存状態に設定（黒丸を表示）
+                        card.SaveStatus = "unsaved";
+
+                        System.Diagnostics.Debug.WriteLine(
+                            $"AcquisitionDatePicker_Click: Date selected for CardId = {card.CardId}, Date = {dateTimeOffset:O}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"Error in AcquisitionDatePicker_Click: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"  Stack trace: {ex.StackTrace}");
+            }
+        }
+
+        /// <summary>
+        /// 取得日時と備考を保存するボタンクリックイベント
+        /// </summary>
+        private async void SaveAcquisitionData_Click(object sender, RoutedEventArgs e)
+        {
+            var button = sender as Button;
+            var card = button?.DataContext as CardWithAcquisitionStatus;
+            if (card == null || _databaseService == null) return;
+
+            try
+            {
+                // 保存中状態に変更
+                card.SaveStatus = "saving";
+
+                // テキストボックスから DateTimeOffset をパース（必要に応じて）
+                var acquisitionDate = card.AcquisitionDate;
+                if (!string.IsNullOrEmpty(card.AcquisitionDateDisplay))
+                {
+                    if (DateTimeOffset.TryParse(card.AcquisitionDateDisplay, out var parsedDate))
+                    {
+                        acquisitionDate = parsedDate;
+                    }
+                }
+
+                // データベースに保存
+                await _databaseService.UpdateAcquisitionHistoryAsync(
+                    card.CardId,
+                    acquisitionDate,
+                    card.Notes);
+
+                // 保存成功状態に変更
+                card.SaveStatus = "success";
+
+                System.Diagnostics.Debug.WriteLine(
+                    $"SaveAcquisitionData_Click: Data saved for CardId = {card.CardId}");
+
+                // 2秒後に未編集状態に戻す
+                _ = ResetSaveStatusAsync(card, 2000);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"Error in SaveAcquisitionData_Click: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"  Stack trace: {ex.StackTrace}");
+
+                // 失敗状態に変更（バツが消えない）
+                card.SaveStatus = "error";
+            }
+        }
+
+        /// <summary>
+        /// 保存ステータスをリセット（未編集状態に戻す）
+        /// </summary>
+        private async Task ResetSaveStatusAsync(CardWithAcquisitionStatus card, int delayMilliseconds)
+        {
+            await Task.Delay(delayMilliseconds);
+            card.SaveStatus = "none";
+        }
+
+        /// <summary>
+        /// 取得日時テキストボックス変更イベント
+        /// </summary>
+        private void AcquisitionDateTextBox_TextChanged(
+            object sender,
+            TextChangedEventArgs e)
+        {
+            try
+            {
+                if (sender is TextBox textBox &&
+                    textBox.DataContext is CardWithAcquisitionStatus card)
+                {
+                    // 保存中以外の場合、未保存状態に設定（黒丸を表示）
+                    // 失敗状態でも編集時は黒丸が優先表示される
+                    if (card.SaveStatus != "saving")
+                    {
+                        card.SaveStatus = "unsaved";
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"Error in AcquisitionDateTextBox_TextChanged: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// 備考テキストボックス変更イベント
+        /// </summary>
+        private void NotesTextBox_TextChanged(
+            object sender,
+            TextChangedEventArgs e)
+        {
+            try
+            {
+                if (sender is TextBox textBox &&
+                    textBox.DataContext is CardWithAcquisitionStatus card)
+                {
+                    // 保存中以外の場合、未保存状態に設定（黒丸を表示）
+                    // 失敗状態でも編集時は黒丸が優先表示される
+                    if (card.SaveStatus != "saving")
+                    {
+                        card.SaveStatus = "unsaved";
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"Error in NotesTextBox_TextChanged: {ex.Message}");
+            }
+        }
     }
 }

@@ -802,11 +802,13 @@ namespace ManholeCardManager.Services
                     c.DesignImagePath, 
                     c.SeriesNumber,
                     c.IssuedDate,
-                    COALESCE(latest_ah.IsAcquired, 0) as IsAcquired
+                    COALESCE(latest_ah.IsAcquired, 0) as IsAcquired,
+                    latest_ah.AcquisitionDate,
+                    latest_ah.Notes
                 FROM Locations l
                 INNER JOIN Cards c ON l.CardId = c.CardId
                 LEFT JOIN (
-                    SELECT CardId, IsAcquired
+                    SELECT CardId, IsAcquired, AcquisitionDate, Notes
                     FROM AcquisitionHistory
                     WHERE (CardId, CreatedDate) IN (
                         SELECT CardId, MAX(CreatedDate)
@@ -824,6 +826,8 @@ namespace ManholeCardManager.Services
                 var locationId = reader.GetInt32(0);
                 var cardId = reader.GetInt32(7);
                 var isAcquired = reader.GetInt32(11) == 1;
+                var acquisitionDate = reader.IsDBNull(12) ? (DateTimeOffset?)null : DateTimeOffset.Parse(reader.GetString(12));
+                var notes = reader.IsDBNull(13) ? null : reader.GetString(13);
 
                 if (!locations.ContainsKey(locationId))
                 {
@@ -848,12 +852,14 @@ namespace ManholeCardManager.Services
                     Municipality = reader.IsDBNull(4) ? null : reader.GetString(4),
                     Description = reader.IsDBNull(5) ? null : reader.GetString(5),
                     StockStatus = reader.IsDBNull(6) ? null : reader.GetString(6),
-                    IsAcquired = isAcquired
+                    IsAcquired = isAcquired,
+                    AcquisitionDate = acquisitionDate,
+                    Notes = notes
                 });
                 
                 cardCount++;
                 System.Diagnostics.Debug.WriteLine(
-                    $"Loaded CardId={cardId}, LocationId={locationId}, IsAcquired={isAcquired}");
+                    $"Loaded CardId={cardId}, LocationId={locationId}, IsAcquired={isAcquired}, AcquisitionDate={acquisitionDate:O}, Notes={notes}");
             }
 
             System.Diagnostics.Debug.WriteLine(
@@ -946,6 +952,94 @@ namespace ManholeCardManager.Services
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error inserting sample data: {ex.Message}");
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// カード取得履歴を更新または追加
+        /// </summary>
+        /// <param name="cardId">カードID</param>
+        /// <param name="acquisitionDate">取得日時（ISO 8601 拡張形式）</param>
+        /// <param name="notes">備考</param>
+        public async Task UpdateAcquisitionHistoryAsync(
+            int cardId,
+            DateTimeOffset? acquisitionDate,
+            string? notes)
+        {
+            try
+            {
+                using var connection = new SqliteConnection(GetConnectionString());
+                await connection.OpenAsync();
+
+                // 既存の取得履歴を確認
+                var checkQuery = "SELECT COUNT(*) FROM AcquisitionHistory WHERE CardId = @cardId";
+                using var checkCommand = new SqliteCommand(checkQuery, connection);
+                checkCommand.Parameters.AddWithValue("@cardId", cardId);
+                var exists = (long)await checkCommand.ExecuteScalarAsync() > 0;
+
+                if (exists)
+                {
+                    // 既存レコードを更新（最新の1件のみを更新）
+                    var updateQuery = @"
+                        UPDATE AcquisitionHistory
+                        SET AcquisitionDate = @acquisitionDate,
+                            Notes = @notes
+                        WHERE HistoryId = (
+                            SELECT HistoryId FROM AcquisitionHistory
+                            WHERE CardId = @cardId
+                            ORDER BY CreatedDate DESC
+                            LIMIT 1
+                        )
+                    ";
+                    using var updateCommand = new SqliteCommand(updateQuery, connection);
+                    updateCommand.Parameters.AddWithValue("@cardId", cardId);
+                    updateCommand.Parameters.AddWithValue(
+                        "@acquisitionDate",
+                        acquisitionDate?.ToString("O") ?? (object)DBNull.Value);
+                    updateCommand.Parameters.AddWithValue(
+                        "@notes",
+                        notes ?? (object)DBNull.Value);
+
+                    await updateCommand.ExecuteNonQueryAsync();
+
+                    System.Diagnostics.Debug.WriteLine(
+                        $"UpdateAcquisitionHistoryAsync: Updated existing record for CardId = {cardId}");
+                }
+                else
+                {
+                    // 新規レコードを挿入
+                    var insertQuery = @"
+                        INSERT INTO AcquisitionHistory
+                        (CardId, IsAcquired, AcquisitionDate, Notes, CreatedDate)
+                        VALUES (@cardId, 1, @acquisitionDate, @notes, @createdDate)
+                    ";
+                    using var insertCommand = new SqliteCommand(insertQuery, connection);
+                    insertCommand.Parameters.AddWithValue("@cardId", cardId);
+                    insertCommand.Parameters.AddWithValue(
+                        "@acquisitionDate",
+                        acquisitionDate?.ToString("O") ?? (object)DBNull.Value);
+                    insertCommand.Parameters.AddWithValue(
+                        "@notes",
+                        notes ?? (object)DBNull.Value);
+                    insertCommand.Parameters.AddWithValue(
+                        "@createdDate",
+                        DateTimeOffset.UtcNow.ToString("O"));
+
+                    await insertCommand.ExecuteNonQueryAsync();
+
+                    System.Diagnostics.Debug.WriteLine(
+                        $"UpdateAcquisitionHistoryAsync: Inserted new record for CardId = {cardId}");
+                }
+
+                System.Diagnostics.Debug.WriteLine(
+                    $"UpdateAcquisitionHistoryAsync: Data saved for CardId = {cardId}, AcquisitionDate = {acquisitionDate:O}, Notes = {notes}");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"Error updating acquisition history: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"  Stack trace: {ex.StackTrace}");
                 throw;
             }
         }

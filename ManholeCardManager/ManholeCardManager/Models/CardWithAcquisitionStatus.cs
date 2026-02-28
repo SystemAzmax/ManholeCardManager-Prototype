@@ -8,6 +8,9 @@ namespace ManholeCardManager.Models
     public class CardWithAcquisitionStatus : INotifyPropertyChanged
     {
         private bool _isAcquired;
+        private System.DateTimeOffset? _acquisitionDate;
+        private string? _notes;
+        private string _saveStatus = "none"; // none, saving, success, error
 
         /// <summary>
         /// カードID
@@ -168,6 +171,68 @@ namespace ManholeCardManager.Models
                 }
 
                 return string.Empty;
+            }
+        }
+
+        /// <summary>
+        /// 取得日時
+        /// </summary>
+        public System.DateTimeOffset? AcquisitionDate
+        {
+            get => _acquisitionDate;
+            set
+            {
+                if (_acquisitionDate != value)
+                {
+                    _acquisitionDate = value;
+                    OnPropertyChanged(nameof(AcquisitionDate));
+                    OnPropertyChanged(nameof(AcquisitionDateDisplay));
+                }
+            }
+        }
+
+        /// <summary>
+        /// 取得日時表示用
+        /// </summary>
+        public string AcquisitionDateDisplay
+        {
+            get
+            {
+                if (AcquisitionDate == null)
+                    return string.Empty;
+                return AcquisitionDate.Value.ToString("yyyy-MM-ddTHH:mm:sszzz");
+            }
+        }
+
+        /// <summary>
+        /// 備考
+        /// </summary>
+        public string? Notes
+        {
+            get => _notes;
+            set
+            {
+                if (_notes != value)
+                {
+                    _notes = value;
+                    OnPropertyChanged(nameof(Notes));
+                }
+            }
+        }
+
+        /// <summary>
+        /// 保存ステータス（none, saving, success, error）
+        /// </summary>
+        public string SaveStatus
+        {
+            get => _saveStatus;
+            set
+            {
+                if (_saveStatus != value)
+                {
+                    _saveStatus = value;
+                    OnPropertyChanged(nameof(SaveStatus));
+                }
             }
         }
 
