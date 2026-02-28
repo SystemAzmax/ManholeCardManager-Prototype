@@ -90,6 +90,7 @@ namespace ManholeCardManager
             AppTitleBlock.Text = locService.GetString("AppTitle");
             LanguageLabelBlock.Text = locService.GetString("Language");
             LoadingTip.Title = locService.GetString("Processing");
+            SeriesNumberFilterComboBox.PlaceholderText = locService.GetString("SeriesNumberFilter");
         }
 
         /// <summary>
@@ -186,6 +187,13 @@ namespace ManholeCardManager
                     _viewModel.CardCollectionViewModel.ReloadCards();
                 }
             }
+        }
+
+        /// <summary>
+        /// 弾数フィルタコンボボックス変更イベント
+        /// </summary>
+        private void SeriesNumberFilterComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
         }
 
         /// <summary>

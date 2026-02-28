@@ -27,6 +27,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="Assets\dummy_card.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
     <None Remove="Strings\ja-JP\Resources.resw" />
     <None Remove="Strings\en-US\Resources.resw" />
   </ItemGroup>

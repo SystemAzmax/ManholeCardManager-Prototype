@@ -122,4 +122,10 @@
   <mresource name="StockStatus" type="LTEXT">
     <value>在庫状況</value>
   </mresource>
+  <mresource name="SeriesNumberFilter" type="LTEXT">
+    <value>弾数で絞り込み</value>
+  </mresource>
+  <mresource name="AllSeries" type="LTEXT">
+    <value>すべて</value>
+  </mresource>
 </root>

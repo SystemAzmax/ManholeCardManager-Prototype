@@ -60,12 +60,32 @@
                 <TextBlock Text="配布場所一覧"
                            Style="{StaticResource
                            SubtitleTextBlockStyle}"/>
-                <TextBox x:Name="LocationSearchBox" Height="40"
-                         PlaceholderText="場所名で検索..."
-                         Text="{Binding
-                         DistributionLocationViewModel.SearchText,
-                         Mode=TwoWay,
-                         UpdateSourceTrigger=PropertyChanged}"/>
+                <Grid ColumnSpacing="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="200"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBox Grid.Column="0" x:Name="LocationSearchBox" Height="40"
+                             PlaceholderText="場所名で検索..."
+                             Text="{Binding
+                             DistributionLocationViewModel.SearchText,
+                             Mode=TwoWay,
+                             UpdateSourceTrigger=PropertyChanged}"/>
+                    <ComboBox Grid.Column="1" x:Name="SeriesNumberFilterComboBox" 
+                              Height="40"
+                              ItemsSource="{Binding
+                              DistributionLocationViewModel.SeriesNumbers}"
+                              SelectedItem="{Binding
+                              DistributionLocationViewModel.SelectedSeriesNumber,
+                              Mode=TwoWay}"
+                              SelectionChanged="SeriesNumberFilterComboBox_SelectionChanged">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding}"/>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                </Grid>
             </StackPanel>
 
             <!-- カード一覧 -->
@@ -82,9 +102,7 @@
                                                FontSize="20"
                                                FontWeight="Bold"/>
                                     <TextBlock Text="{Binding Address}"
-                                               FontSize="12"
-                                               Foreground="{ThemeResource
-                                               TextFillColorSecondaryBrush}"/>
+                                               FontSize="12"/>
                                 </StackPanel>
 
                                 <!-- 配布場所のカード一覧 -->
@@ -122,67 +140,58 @@
                                                             Height="140"
                                                             BorderBrush="#4CAF50"
                                                             BorderThickness="3">
-                                                            <StackPanel
-                                                                VerticalAlignment="Top"
-                                                                HorizontalAlignment="Left"
-                                                                Spacing="5"
-                                                                Margin="8">
-                                                                <!-- 取得ステータス表示 -->
-                                                                <Ellipse
-                                                                    Width="32"
-                                                                    Height="32"
-                                                                    Fill="{Binding
-                                                                    IsAcquired,
-                                                                    Converter={StaticResource
-                                                                    AcquisitionStatusColorConverter}}"/>
-                                                                <TextBlock
-                                                                    Text="{Binding
-                                                                    AcquisitionStatusDisplay}"
-                                                                    FontSize="20"
-                                                                    FontWeight="Bold"
-                                                                    TextAlignment="Center"
-                                                                    Foreground="White"/>
-                                                            </StackPanel>
+                                                            <Grid>
+                                                                <!-- カードデザイン画像 -->
+                                                                <Image
+                                                                    Source="{Binding CachedImagePath}"
+                                                                    Stretch="Uniform"/>
+                                                                
+                                                                <!-- 取得ステータス表示（画像の上に重ねる） -->
+                                                                <StackPanel
+                                                                    VerticalAlignment="Top"
+                                                                    HorizontalAlignment="Left"
+                                                                    Spacing="5"
+                                                                    Margin="8">
+                                                                    <Ellipse
+                                                                        Width="32"
+                                                                        Height="32"
+                                                                        Fill="{Binding
+                                                                        IsAcquired,
+                                                                        Converter={StaticResource
+                                                                        AcquisitionStatusColorConverter}}"/>
+                                                                    <TextBlock
+                                                                        Text="{Binding
+                                                                        AcquisitionStatusDisplay}"
+                                                                        FontSize="20"
+                                                                        FontWeight="Bold"
+                                                                        TextAlignment="Center"
+                                                                        Foreground="White"/>
+                                                                </StackPanel>
+                                                            </Grid>
                                                         </Border>
                                                         <TextBlock
                                                             Text="{Binding
                                                             LocationDisplay}"
                                                             FontSize="11"
                                                             TextAlignment="Center"
-                                                            TextWrapping="Wrap"
-                                                            Foreground="{ThemeResource
-                                                            TextFillColorSecondaryBrush}"/>
+                                                            TextWrapping="Wrap"/>
                                                     </StackPanel>
 
                                                     <!-- 右側：カード情報 -->
                                                     <StackPanel
                                                         Grid.Column="1"
                                                         Spacing="8">
-                                                        <!-- カード名と発行日 -->
-                                                        <StackPanel Spacing="3">
+                                                        <!-- 発行日 -->
+                                                        <StackPanel Spacing="2">
                                                             <TextBlock
-                                                                Text="{Binding
-                                                                CardTitleDisplay}"
-                                                                FontSize="18"
-                                                                FontWeight="Bold"
-                                                                TextWrapping="Wrap"/>
+                                                                Text="発行日"
+                                                                FontSize="11"
+                                                                FontWeight="Bold"/>
                                                             <TextBlock
                                                                 Text="{Binding
                                                                 IssuedDateDisplay}"
-                                                                FontSize="12"
-                                                                Foreground="{ThemeResource
-                                                                TextFillColorSecondaryBrush}"/>
+                                                                FontSize="13"/>
                                                         </StackPanel>
-
-                                                        <!-- 説明 -->
-                                                        <TextBlock
-                                                            Text="{Binding
-                                                            Description}"
-                                                            FontSize="12"
-                                                            Foreground="{ThemeResource
-                                                            TextFillColorTertiaryBrush}"
-                                                            TextWrapping="Wrap"
-                                                            MaxLines="2"/>
 
                                                         <!-- 詳細情報グリッド -->
                                                         <Grid
@@ -212,8 +221,6 @@
                                                                 <TextBlock
                                                                     Text="弾数"
                                                                     FontSize="11"
-                                                                    Foreground="{ThemeResource
-                                                                    TextFillColorSecondaryBrush}"
                                                                     FontWeight="Bold"/>
                                                                 <TextBlock
                                                                     Text="{Binding
@@ -229,8 +236,6 @@
                                                                 <TextBlock
                                                                     Text="概要"
                                                                     FontSize="11"
-                                                                    Foreground="{ThemeResource
-                                                                    TextFillColorSecondaryBrush}"
                                                                     FontWeight="Bold"/>
                                                                 <TextBlock
                                                                     Text="{Binding
@@ -247,8 +252,6 @@
                                                                 <TextBlock
                                                                     Text="都道府県"
                                                                     FontSize="11"
-                                                                    Foreground="{ThemeResource
-                                                                    TextFillColorSecondaryBrush}"
                                                                     FontWeight="Bold"/>
                                                                 <TextBlock
                                                                     Text="{Binding
@@ -265,8 +268,6 @@
                                                                 <TextBlock
                                                                     Text="在庫状況"
                                                                     FontSize="11"
-                                                                    Foreground="{ThemeResource
-                                                                    TextFillColorSecondaryBrush}"
                                                                     FontWeight="Bold"/>
                                                                 <StackPanel
                                                                     Orientation="Horizontal"
@@ -301,9 +302,7 @@
                                                                     <TextBlock
                                                                         Text="{Binding
                                                                         StockCountDisplay}"
-                                                                        FontSize="13"
-                                                                        Foreground="{ThemeResource
-                                                                        TextFillColorSecondaryBrush}"/>
+                                                                        FontSize="13"/>
                                                                 </StackPanel>
                                                             </StackPanel>
                                                         </Grid>

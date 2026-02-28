@@ -14,10 +14,13 @@ namespace ManholeCardManager.ViewModels
     public class DistributionLocationViewModel : INotifyPropertyChanged
     {
         private readonly DatabaseService _databaseService;
+        private readonly ImageCacheService _imageCacheService;
         private ObservableCollection<DistributionLocationWithCards> _locations;
         private DistributionLocationWithCards? _selectedLocation;
         private string _searchText;
         private bool _isLoading;
+        private ObservableCollection<string> _seriesNumbers;
+        private string? _selectedSeriesNumber;
 
         /// <summary>
         /// 配布場所一覧
@@ -85,13 +88,48 @@ namespace ManholeCardManager.ViewModels
         }
 
         /// <summary>
+        /// 弾数フィルタのリスト
+        /// </summary>
+        public ObservableCollection<string> SeriesNumbers
+        {
+            get => _seriesNumbers;
+            set
+            {
+                if (_seriesNumbers != value)
+                {
+                    _seriesNumbers = value;
+                    OnPropertyChanged(nameof(SeriesNumbers));
+                }
+            }
+        }
+
+        /// <summary>
+        /// 選択された弾数
+        /// </summary>
+        public string? SelectedSeriesNumber
+        {
+            get => _selectedSeriesNumber;
+            set
+            {
+                if (_selectedSeriesNumber != value)
+                {
+                    _selectedSeriesNumber = value;
+                    OnPropertyChanged(nameof(SelectedSeriesNumber));
+                    _ = SearchLocations();
+                }
+            }
+        }
+
+        /// <summary>
         /// コンストラクタ
         /// </summary>
         public DistributionLocationViewModel(DatabaseService databaseService)
         {
             _databaseService = databaseService;
+            _imageCacheService = new ImageCacheService();
             _locations = new ObservableCollection<DistributionLocationWithCards>();
             _searchText = string.Empty;
+            _seriesNumbers = new ObservableCollection<string>();
         }
 
         /// <summary>
@@ -102,6 +140,7 @@ namespace ManholeCardManager.ViewModels
             IsLoading = true;
             try
             {
+                await LoadSeriesNumbers();
                 await LoadDistributionLocations();
                 System.Diagnostics.Debug.WriteLine($"DistributionLocationViewModel initialized with {Locations.Count} locations");
             }
@@ -120,8 +159,26 @@ namespace ManholeCardManager.ViewModels
             Locations.Clear();
             foreach (var location in locations.OrderBy(l => l.LocationName))
             {
+                foreach (var card in location.DistributedCards)
+                {
+                    card.CachedImagePath = await _imageCacheService.GetImageAsync(card.DesignImagePath);
+                }
                 Locations.Add(location);
             }
+        }
+
+        /// <summary>
+        /// 弾数リストを読み込む
+        /// </summary>
+        private async Task LoadSeriesNumbers()
+        {
+            SeriesNumbers.Clear();
+            SeriesNumbers.Add(LocalizationService.Instance.GetString("AllSeries"));
+            for (int i = 1; i <= 27; i++)
+            {
+                SeriesNumbers.Add($"第{i}弾");
+            }
+            await Task.CompletedTask;
         }
 
         /// <summary>
@@ -132,24 +189,47 @@ namespace ManholeCardManager.ViewModels
             IsLoading = true;
             try
             {
-                if (string.IsNullOrEmpty(SearchText))
+                var allLocations = await _databaseService.GetAllDistributionLocationsWithCardsAsync();
+                var allSeriesText = LocalizationService.Instance.GetString("AllSeries");
+                
+                if (!string.IsNullOrEmpty(SearchText) || !string.IsNullOrEmpty(SelectedSeriesNumber) && SelectedSeriesNumber != allSeriesText)
                 {
-                    await LoadDistributionLocations();
+                    var filtered = allLocations.AsEnumerable();
+                    
+                    if (!string.IsNullOrEmpty(SearchText))
+                    {
+                        filtered = filtered.Where(l => 
+                            l.LocationName.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
+                            (l.Address?.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ?? false));
+                    }
+                    
+                    if (!string.IsNullOrEmpty(SelectedSeriesNumber) && SelectedSeriesNumber != allSeriesText)
+                    {
+                        filtered = filtered.Select(l => new DistributionLocationWithCards
+                        {
+                            LocationId = l.LocationId,
+                            LocationName = l.LocationName,
+                            Address = l.Address,
+                            DistributedCards = new ObservableCollection<CardWithAcquisitionStatus>(
+                                l.DistributedCards.Where(c => $"第{c.SeriesNumber}弾" == SelectedSeriesNumber))
+                        }).Where(l => l.DistributedCards.Any());
+                    }
+                    
+                    var filteredList = filtered.OrderBy(l => l.LocationName).ToList();
+                    
+                    Locations.Clear();
+                    foreach (var location in filteredList)
+                    {
+                        foreach (var card in location.DistributedCards)
+                        {
+                            card.CachedImagePath = await _imageCacheService.GetImageAsync(card.DesignImagePath);
+                        }
+                        Locations.Add(location);
+                    }
                 }
                 else
                 {
-                    var allLocations = await _databaseService.GetAllDistributionLocationsWithCardsAsync();
-                    var filtered = allLocations
-                        .Where(l => l.LocationName.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
-                                   (l.Address?.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ?? false))
-                        .OrderBy(l => l.LocationName)
-                        .ToList();
-
-                    Locations.Clear();
-                    foreach (var location in filtered)
-                    {
-                        Locations.Add(location);
-                    }
+                    await LoadDistributionLocations();
                 }
             }
             finally

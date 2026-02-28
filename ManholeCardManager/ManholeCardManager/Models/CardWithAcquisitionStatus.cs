@@ -36,6 +36,11 @@ namespace ManholeCardManager.Models
         public string? DesignImagePath { get; set; }
 
         /// <summary>
+        /// キャッシュされた画像の表示パス
+        /// </summary>
+        public string? CachedImagePath { get; set; }
+
+        /// <summary>
         /// 弾数
         /// </summary>
         public int SeriesNumber { get; set; } = 1;

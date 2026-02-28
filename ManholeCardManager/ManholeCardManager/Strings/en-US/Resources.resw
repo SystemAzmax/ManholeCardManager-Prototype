@@ -122,4 +122,10 @@
   <mresource name="StockStatus" type="LTEXT">
     <value>Stock Status</value>
   </mresource>
+  <mresource name="SeriesNumberFilter" type="LTEXT">
+    <value>Filter by Series</value>
+  </mresource>
+  <mresource name="AllSeries" type="LTEXT">
+    <value>All</value>
+  </mresource>
 </root>
