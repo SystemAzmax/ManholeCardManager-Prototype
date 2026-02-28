@@ -1,0 +1,42 @@
+name: Build Verification
+
+on:
+  push:
+    branches: [ main, develop, feature/** ]
+    paths:
+      - 'ManholeCardManager/**'
+      - '.github/workflows/build.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'ManholeCardManager/**'
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    strategy:
+      matrix:
+        configuration: [Debug, Release]
+        platform: [x64]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Restore dependencies
+      run: dotnet restore
+
+    - name: Build (${{ matrix.configuration }}|${{ matrix.platform }})
+      run: dotnet build --configuration ${{ matrix.configuration }} --no-restore --verbosity normal
+
+    - name: Check for warnings
+      run: |
+        $warnings = Select-String -Path "*.csproj" -Pattern "TreatWarningsAsErrors" -Recurse
+        if ($warnings) {
+          Write-Host "Build configuration includes strict warning handling"
+        }

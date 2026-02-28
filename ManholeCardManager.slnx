@@ -4,6 +4,9 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
+  <Folder Name="/ManholeCardManager/">
+    <Project Path="ManholeCardManager/ManholeCardManager.Tests/ManholeCardManager.Tests.csproj" />
+  </Folder>
   <Project Path="ManholeCardDataScraper/ManholeCardDataScraper.csproj">
     <Build Solution="Release|x64" Project="false" />
   </Project>

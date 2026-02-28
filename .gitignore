@@ -366,3 +366,15 @@ FodyWeavers.xsd
 /.github/LOGGING_GUIDE.md
 /Directory.Build.props
 /ManholeCardManager/ManholeCardManager/ManholeCardManager/series-settings.json
+/docs/Phase1_テスト.xlsx
+/docs/dustbox/Phase1_TestSpecification.md
+/docs/dustbox/_Phase1_UIテスト.csv
+/docs/dustbox/_Phase1_テスト対象一覧.csv
+/docs/dustbox/_Phase1_テスト環境・優先度.csv
+/docs/dustbox/_Phase1_単体テスト_Converters.csv
+/docs/dustbox/_Phase1_単体テスト_Models.csv
+/docs/dustbox/_Phase1_単体テスト_Services.csv
+/docs/dustbox/_Phase1_単体テスト_ViewModels.csv
+/docs/dustbox/_Phase1_結合テスト.csv
+/docs/dustbox/_Phase1_非機能テスト.csv
+/docs/アイコン表示トラブルシューティング.md

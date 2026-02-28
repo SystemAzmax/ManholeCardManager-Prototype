@@ -1,0 +1,52 @@
+name: Code Coverage Report
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'ManholeCardManager/**'
+      - '.github/workflows/coverage.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'ManholeCardManager/**'
+
+jobs:
+  coverage:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Restore dependencies
+      run: dotnet restore
+
+    - name: Run tests with coverage
+      run: dotnet test ManholeCardManager/ManholeCardManager.Tests/ManholeCardManager.Tests.csproj `
+        --configuration Release `
+        --no-restore `
+        /p:CollectCoverage=true `
+        /p:CoverletOutputFormat=opencover `
+        /p:CoverletOutput=./coverage/opencover.xml
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        files: ./coverage/opencover.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+        verbose: true
+
+    - name: Generate coverage report
+      if: always()
+      uses: irongut/CodeCoverage@v1.3.6
+      with:
+        filename: ./coverage/opencover.xml
+        badge: true
+        fail_below_min: false
