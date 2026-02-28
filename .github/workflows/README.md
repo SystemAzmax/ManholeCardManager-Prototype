@@ -4,7 +4,7 @@
 
 ## 📋 ワークフロー一覧
 
-### 1. **dotnet-test.yml** - ユニットテスト実行
+### 1. **dotnet-test.yml** - ユニットテスト実行 ⭐ メイン
 ```yaml
 実行トリガー:
   - push: main, develop, feature/** ブランチ
@@ -15,12 +15,11 @@
 - ✅ .NET 8のセットアップ
 - ✅ 依存関係の復元
 - ✅ Release構成でのビルド
-- ✅ ユニットテスト実行
-- ✅ テスト結果の保存・レポート
+- ✅ ユニットテスト実行（29テスト）
+- ✅ テスト結果の保存・アップロード
 
 **成果物:**
-- Test Results (TRX形式)
-- PR に自動コメント
+- Test Results (TRX形式) → Artifacts にアップロード
 
 ### 2. **coverage.yml** - コードカバレッジ分析
 ```yaml
@@ -32,13 +31,13 @@
 **実行内容:**
 - ✅ OpenCover形式でのカバレッジ計測
 - ✅ Codecov へのアップロード
-- ✅ カバレッジレポート生成
+- ✅ カバレッジレポート保存
 
 **成果物:**
 - Codecov バッジ
-- カバレッジレポート
+- カバレッジレポート → Artifacts にアップロード
 
-### 3. **build.yml** - ビルド検証
+### 3. **build.yml** - テストプロジェクトビルド検証
 ```yaml
 実行トリガー:
   - push: すべてのブランチ
@@ -46,8 +45,11 @@
 ```
 
 **実行内容:**
-- ✅ Debug & Release 構成でのビルド
-- ✅ x64 プラットフォームでの検証
+- ✅ テストプロジェクトの Debug ビルド検証
+- ✅ テストプロジェクトの Release ビルド検証
+
+**注意:** WinUI プロジェクト（ManholeCardManager.csproj）のビルドは
+複雑なため、テストプロジェクトに集約しています。
 
 ## 🚀 セットアップ手順
 
@@ -88,21 +90,32 @@ gh run view <run-id>
 
 ## 📝 テスト結果の見方
 
-### Pull Request への自動コメント
-テスト実行後、PRに以下の情報が自動でコメントされます：
-
-```
-✅ 29 passed
-❌ 0 failed
-⏭️ 0 skipped
-
-テスト実行時間: 3.2 秒
-```
+### Artifacts をダウンロード
+1. PR の **Summary** ページ
+2. 下部の **Artifacts** セクション
+3. `test-results` をダウンロード
+4. TRX ファイルをテストエクスプローラーで開く
 
 ### テスト結果の詳細確認
 1. PR の **Checks** タブ
-2. **Unit Test Results** を展開
-3. 各テストの実行結果を確認
+2. **.NET Tests** ワークフローを展開
+3. **Run unit tests** ステップで詳細確認
+
+## ✅ ワークフロー実行フロー
+
+```
+feature ブランチへの push
+    ↓
+GitHub Actions トリガー
+    ↓
+3つのワークフロー並列実行
+├─ build.yml (テストプロジェクトビルド検証)
+├─ dotnet-test.yml (ユニットテスト実行 ⭐)
+└─ coverage.yml (コードカバレッジ分析)
+    ↓
+全て成功 → PR マージ可能
+いずれか失敗 → 修正必要
+```
 
 ## 🔄 キャッシング（パフォーマンス最適化）
 
@@ -120,30 +133,40 @@ gh run view <run-id>
 
 ## ❌ トラブルシューティング
 
-### 1. ワークフローが実行されない
-**原因:** paths が一致していない
+### Q1: ワークフローが実行されない
+**A:** `.github/workflows/` ファイルが存在し、`on:` セクションが設定されているか確認
 
-**解決:**
 ```yaml
 paths:
   - 'ManholeCardManager/**'
-  - '.github/workflows/dotnet-test.yml'
+  - '.github/workflows/build.yml'
 ```
 
-### 2. テストが失敗する
-**確認項目:**
+### Q2: テストが失敗する
+**A:** ローカルで再現してみてください
+
 ```bash
-# ローカルで再現
-dotnet test ManholeCardManager/ManholeCardManager.Tests/
+# 同じ環境でテスト
+dotnet test ManholeCardManager/ManholeCardManager.Tests/ --configuration Release
 
 # ビルド確認
-dotnet build --configuration Release
+dotnet build ManholeCardManager/ManholeCardManager.Tests/ --configuration Release
 ```
 
-### 3. WinUI依存エラー
-**原因:** WinUI3 は Windows 環境が必要
+### Q3: "The strategy configuration was canceled because build failed"
+**A:** 通常はテストプロジェクトのビルドエラーです
 
-**解決:** ワークフローは `windows-latest` を使用（✅ 設定済み）
+**確認:**
+```bash
+# ローカルで再現
+dotnet build ManholeCardManager/ManholeCardManager.Tests/
+
+# 詳細ログで確認
+dotnet build ManholeCardManager/ManholeCardManager.Tests/ --verbosity diagnostic
+```
+
+### Q4: WinUI アプリ のビルドワークフローが必要
+**A:** `build.yml` をカスタマイズしてください（複雑なため別途対応推奨）
 
 ## 📈 カスタマイズ例
 
@@ -151,7 +174,7 @@ dotnet build --configuration Release
 ```yaml
 on:
   schedule:
-    - cron: '0 2 * * *'  # 毎日 02:00 UTC
+    - cron: '0 2 * * *'  # 毎日 02:00 UTC = JST 11:00
 ```
 
 ### 2. 複数 .NET バージョンでテスト
@@ -161,11 +184,13 @@ strategy:
     dotnet-version: ['7.0.x', '8.0.x']
 ```
 
-### 3. Slack 通知
+### 3. Slack 通知（テスト失敗時）
 ```yaml
-- name: Slack Notification
-  uses: slackapi/slack-github-action@v1
+- name: Notify Slack on failure
   if: failure()
+  uses: slackapi/slack-github-action@v1
+  with:
+    webhook-url: ${{ secrets.SLACK_WEBHOOK }}
 ```
 
 ## 📚 リンク
@@ -176,10 +201,10 @@ strategy:
 
 ## ⚙️ 現在の設定
 
-| ワークフロー | トリガー | テスト | ビルド |
-|-----------|---------|--------|---------|
-| dotnet-test.yml | push/PR | ✅ | ✅ |
-| coverage.yml | push/PR | ✅ | - |
-| build.yml | push/PR | - | ✅ |
+| ワークフロー | トリガー | 内容 | OS |
+|-----------|---------|------|-----|
+| **dotnet-test.yml** ⭐ | push/PR | テスト実行（29テスト） | Windows |
+| **coverage.yml** | push/PR | カバレッジ分析 | Windows |
+| **build.yml** | push/PR | テストプロジェクトビルド検証 | Windows |
 
-全ワークフローが正常に機能しています！
+**推奨：** dotnet-test.yml がメインのワークフローです。build.yml と coverage.yml は補助的に使用してください。

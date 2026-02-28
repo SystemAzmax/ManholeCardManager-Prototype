@@ -43,10 +43,9 @@ jobs:
         fail_ci_if_error: false
         verbose: true
 
-    - name: Generate coverage report
+    - name: Upload coverage artifacts
       if: always()
-      uses: irongut/CodeCoverage@v1.3.6
+      uses: actions/upload-artifact@v4
       with:
-        filename: ./coverage/opencover.xml
-        badge: true
-        fail_below_min: false
+        name: coverage-report
+        path: ./coverage/

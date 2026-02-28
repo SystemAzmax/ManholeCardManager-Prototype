@@ -42,10 +42,3 @@ jobs:
       with:
         name: test-results
         path: '**/TestResults/**'
-
-    - name: Publish test results
-      if: always()
-      uses: EnricoMi/publish-unit-test-result-action@v2
-      with:
-        files: '**/TestResults/**/*.trx'
-        check_name: Unit Test Results

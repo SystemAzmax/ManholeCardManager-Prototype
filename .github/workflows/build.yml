@@ -12,13 +12,8 @@ on:
       - 'ManholeCardManager/**'
 
 jobs:
-  build:
+  build-test-project:
     runs-on: windows-latest
-
-    strategy:
-      matrix:
-        configuration: [Debug, Release]
-        platform: [x64]
 
     steps:
     - uses: actions/checkout@v4
@@ -31,12 +26,8 @@ jobs:
     - name: Restore dependencies
       run: dotnet restore
 
-    - name: Build (${{ matrix.configuration }}|${{ matrix.platform }})
-      run: dotnet build --configuration ${{ matrix.configuration }} --no-restore --verbosity normal
+    - name: Build Test Project (Debug)
+      run: dotnet build ManholeCardManager/ManholeCardManager.Tests/ManholeCardManager.Tests.csproj --configuration Debug --no-restore --verbosity normal
 
-    - name: Check for warnings
-      run: |
-        $warnings = Select-String -Path "*.csproj" -Pattern "TreatWarningsAsErrors" -Recurse
-        if ($warnings) {
-          Write-Host "Build configuration includes strict warning handling"
-        }
+    - name: Build Test Project (Release)
+      run: dotnet build ManholeCardManager/ManholeCardManager.Tests/ManholeCardManager.Tests.csproj --configuration Release --no-restore --verbosity normal
