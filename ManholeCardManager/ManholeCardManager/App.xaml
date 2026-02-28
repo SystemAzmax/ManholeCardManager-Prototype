@@ -3,14 +3,18 @@
     x:Class="ManholeCardManager.App"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:local="using:ManholeCardManager">
+    xmlns:local="using:ManholeCardManager"
+    xmlns:converters="using:ManholeCardManager.Converters">
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
-                <!-- Other merged dictionaries here -->
+                <XamlControlsResources
+                    xmlns="using:Microsoft.UI.Xaml.Controls" />
             </ResourceDictionary.MergedDictionaries>
-            <!-- Other app resources here -->
+
+            <!-- コンバーター登録 -->
+            <converters:AcquisitionStatusColorConverter
+                x:Key="AcquisitionStatusColorConverter"/>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

@@ -6,14 +6,302 @@
     xmlns:local="using:ManholeCardManager"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    mc:Ignorable="d"
-    Title="ManholeCardManager">
+    mc:Ignorable="d">
 
     <Window.SystemBackdrop>
         <MicaBackdrop />
     </Window.SystemBackdrop>
 
-    <Grid>
+    <Grid Background="{ThemeResource
+ ApplicationPageBackgroundThemeBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
 
+        <!-- ヘッダー -->
+        <Grid Grid.Row="0" Padding="20">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" x:Name="AppTitleBlock"
+                       Style="{StaticResource TitleTextBlockStyle}"/>
+
+            <StackPanel Grid.Column="1" Orientation="Horizontal"
+                        Spacing="10">
+                <TextBlock x:Name="LanguageLabelBlock"
+                           VerticalAlignment="Center"
+                           Style="{StaticResource
+                           BodyStrongTextBlockStyle}"/>
+                <ComboBox x:Name="LanguageComboBox" Width="150"
+                          ItemsSource="{Binding
+                          LocalizationService.SupportedLanguages}"
+                          SelectedValuePath="LanguageCode"
+                          SelectionChanged="LanguageComboBox_SelectionChanged">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding LanguageName}"/>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+            </StackPanel>
+        </Grid>
+
+        <!-- メインコンテンツ -->
+        <Grid Grid.Row="1" Padding="20">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- 検索 -->
+            <StackPanel Grid.Row="0" Spacing="10" Margin="0,0,0,15">
+                <TextBlock Text="配布場所一覧"
+                           Style="{StaticResource
+                           SubtitleTextBlockStyle}"/>
+                <TextBox x:Name="LocationSearchBox" Height="40"
+                         PlaceholderText="場所名で検索..."
+                         Text="{Binding
+                         DistributionLocationViewModel.SearchText,
+                         Mode=TwoWay,
+                         UpdateSourceTrigger=PropertyChanged}"/>
+            </StackPanel>
+
+            <!-- カード一覧 -->
+            <ScrollViewer Grid.Row="1">
+                <ItemsControl ItemsSource="{Binding
+                              DistributionLocationViewModel.Locations}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Spacing="15" Margin="0,0,0,20">
+                                <!-- 配布場所ヘッダー -->
+                                <StackPanel Spacing="5">
+                                    <TextBlock Text="{Binding
+                                               LocationName}"
+                                               FontSize="20"
+                                               FontWeight="Bold"/>
+                                    <TextBlock Text="{Binding Address}"
+                                               FontSize="12"
+                                               Foreground="{ThemeResource
+                                               TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+
+                                <!-- 配布場所のカード一覧 -->
+                                <ItemsControl ItemsSource="{Binding
+                                              DistributedCards}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Spacing="10"/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border CornerRadius="12"
+                                                    Padding="20"
+                                                    Background="{ThemeResource
+                                                    CardBackgroundFillColorDefaultBrush}"
+                                                    BorderBrush="{ThemeResource
+                                                    CardStrokeColorDefaultBrush}"
+                                                    BorderThickness="1">
+                                                <Grid ColumnSpacing="15">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition
+                                                            Width="120"/>
+                                                        <ColumnDefinition
+                                                            Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <!-- 左側：カードデザイン画像風 -->
+                                                    <StackPanel
+                                                        Grid.Column="0"
+                                                        Spacing="8">
+                                                        <Border
+                                                            CornerRadius="8"
+                                                            Background="#E8F5E9"
+                                                            Height="140"
+                                                            BorderBrush="#4CAF50"
+                                                            BorderThickness="3">
+                                                            <StackPanel
+                                                                VerticalAlignment="Top"
+                                                                HorizontalAlignment="Left"
+                                                                Spacing="5"
+                                                                Margin="8">
+                                                                <!-- 取得ステータス表示 -->
+                                                                <Ellipse
+                                                                    Width="32"
+                                                                    Height="32"
+                                                                    Fill="{Binding
+                                                                    IsAcquired,
+                                                                    Converter={StaticResource
+                                                                    AcquisitionStatusColorConverter}}"/>
+                                                                <TextBlock
+                                                                    Text="{Binding
+                                                                    AcquisitionStatusDisplay}"
+                                                                    FontSize="20"
+                                                                    FontWeight="Bold"
+                                                                    TextAlignment="Center"
+                                                                    Foreground="White"/>
+                                                            </StackPanel>
+                                                        </Border>
+                                                        <TextBlock
+                                                            Text="{Binding
+                                                            LocationDisplay}"
+                                                            FontSize="11"
+                                                            TextAlignment="Center"
+                                                            TextWrapping="Wrap"
+                                                            Foreground="{ThemeResource
+                                                            TextFillColorSecondaryBrush}"/>
+                                                    </StackPanel>
+
+                                                    <!-- 右側：カード情報 -->
+                                                    <StackPanel
+                                                        Grid.Column="1"
+                                                        Spacing="8">
+                                                        <!-- カード名と発行日 -->
+                                                        <StackPanel Spacing="3">
+                                                            <TextBlock
+                                                                Text="{Binding
+                                                                CardTitleDisplay}"
+                                                                FontSize="18"
+                                                                FontWeight="Bold"
+                                                                TextWrapping="Wrap"/>
+                                                            <TextBlock
+                                                                Text="{Binding
+                                                                IssuedDateDisplay}"
+                                                                FontSize="12"
+                                                                Foreground="{ThemeResource
+                                                                TextFillColorSecondaryBrush}"/>
+                                                        </StackPanel>
+
+                                                        <!-- 説明 -->
+                                                        <TextBlock
+                                                            Text="{Binding
+                                                            Description}"
+                                                            FontSize="12"
+                                                            Foreground="{ThemeResource
+                                                            TextFillColorTertiaryBrush}"
+                                                            TextWrapping="Wrap"
+                                                            MaxLines="2"/>
+
+                                                        <!-- 詳細情報グリッド -->
+                                                        <Grid
+                                                            ColumnSpacing="15"
+                                                            RowSpacing="8"
+                                                            Margin="0,8,0,0">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition
+                                                                    Width="*"/>
+                                                                <ColumnDefinition
+                                                                    Width="*"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <Grid.RowDefinitions>
+                                                                <RowDefinition
+                                                                    Height="Auto"/>
+                                                                <RowDefinition
+                                                                    Height="Auto"/>
+                                                                <RowDefinition
+                                                                    Height="Auto"/>
+                                                            </Grid.RowDefinitions>
+
+                                                            <!-- 弾数 -->
+                                                            <StackPanel
+                                                                Grid.Row="0"
+                                                                Grid.Column="0"
+                                                                Spacing="2">
+                                                                <TextBlock
+                                                                    Text="弾数"
+                                                                    FontSize="11"
+                                                                    Foreground="{ThemeResource
+                                                                    TextFillColorSecondaryBrush}"
+                                                                    FontWeight="Bold"/>
+                                                                <TextBlock
+                                                                    Text="{Binding
+                                                                    SeriesNumberDisplay}"
+                                                                    FontSize="13"/>
+                                                            </StackPanel>
+
+                                                            <!-- 配布時間 -->
+                                                            <StackPanel
+                                                                Grid.Row="0"
+                                                                Grid.Column="1"
+                                                                Spacing="2">
+                                                                <TextBlock
+                                                                    Text="配布時間"
+                                                                    FontSize="11"
+                                                                    Foreground="{ThemeResource
+                                                                    TextFillColorSecondaryBrush}"
+                                                                    FontWeight="Bold"/>
+                                                                <TextBlock
+                                                                    Text="{Binding
+                                                                    DistributionTimeDisplay}"
+                                                                    FontSize="13"/>
+                                                            </StackPanel>
+
+                                                            <!-- 都道府県 -->
+                                                            <StackPanel
+                                                                Grid.Row="1"
+                                                                Grid.Column="0"
+                                                                Spacing="2">
+                                                                <TextBlock
+                                                                    Text="都道府県"
+                                                                    FontSize="11"
+                                                                    Foreground="{ThemeResource
+                                                                    TextFillColorSecondaryBrush}"
+                                                                    FontWeight="Bold"/>
+                                                                <TextBlock
+                                                                    Text="{Binding
+                                                                    Prefecture}"
+                                                                    FontSize="11"
+                                                                    TextWrapping="Wrap"/>
+                                                            </StackPanel>
+
+                                                            <!-- 在庫状況 -->
+                                                            <StackPanel
+                                                                Grid.Row="1"
+                                                                Grid.Column="1"
+                                                                Spacing="2">
+                                                                <TextBlock
+                                                                    Text="在庫状況"
+                                                                    FontSize="11"
+                                                                    Foreground="{ThemeResource
+                                                                    TextFillColorSecondaryBrush}"
+                                                                    FontWeight="Bold"/>
+                                                                <StackPanel
+                                                                    Orientation="Horizontal"
+                                                                    Spacing="5">
+                                                                    <TextBlock
+                                                                        Text="{Binding
+                                                                        StockStatus}"
+                                                                        FontSize="13"/>
+                                                                    <TextBlock
+                                                                        Text="{Binding
+                                                                        StockCountDisplay}"
+                                                                        FontSize="13"
+                                                                        Foreground="{ThemeResource
+                                                                        TextFillColorSecondaryBrush}"/>
+                                                                </StackPanel>
+                                                            </StackPanel>
+                                                        </Grid>
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <Border Height="1"
+                                        Background="{ThemeResource
+                                        DividerStrokeColorDefaultBrush}"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Grid>
+
+        <TeachingTip x:Name="LoadingTip"
+                     IsOpen="{Binding IsLoading}"
+                     IsLightDismissEnabled="False"/>
     </Grid>
 </Window>
