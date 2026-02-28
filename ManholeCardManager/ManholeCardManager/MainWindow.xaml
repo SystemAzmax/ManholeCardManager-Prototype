@@ -57,7 +57,8 @@
 
             <!-- 検索 -->
             <StackPanel Grid.Row="0" Spacing="10" Margin="0,0,0,15">
-                <TextBlock Text="配布場所一覧"
+                <TextBlock x:Name="DistributionLocationsLabel"
+                           Text="配布場所一覧"
                            Style="{StaticResource
                            SubtitleTextBlockStyle}"/>
                 <Grid ColumnSpacing="10">
@@ -222,10 +223,6 @@
                                                                     Text="弾数"
                                                                     FontSize="11"
                                                                     FontWeight="Bold"/>
-                                                                <TextBlock
-                                                                    Text="{Binding
-                                                                    SeriesNumberDisplay}"
-                                                                    FontSize="13"/>
                                                             </StackPanel>
 
                                                             <!-- 概要 -->

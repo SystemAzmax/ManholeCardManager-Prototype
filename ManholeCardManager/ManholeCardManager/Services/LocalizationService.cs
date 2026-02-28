@@ -84,7 +84,14 @@ namespace ManholeCardManager.Services
                     ["DistributedCards"] = "配布カード:",
                     ["AcquisitionStatus"] = "取得状況",
                     ["Acquired"] = "◯",
-                    ["NotAcquired"] = "　"
+                    ["NotAcquired"] = "　",
+                    ["SeriesNumberFilter"] = "弾数で絞り込み",
+                    ["AllSeries"] = "すべて",
+                    ["IssueDate"] = "発行日",
+                    ["SeriesNumber"] = "弾数",
+                    ["Overview"] = "概要",
+                    ["Prefecture"] = "都道府県",
+                    ["StockStatus"] = "在庫状況"
                 },
                 ["en-US"] = new Dictionary<string, string>
                 {
@@ -110,7 +117,14 @@ namespace ManholeCardManager.Services
                     ["DistributedCards"] = "Distributed Cards:",
                     ["AcquisitionStatus"] = "Acquisition Status",
                     ["Acquired"] = "◯",
-                    ["NotAcquired"] = "　"
+                    ["NotAcquired"] = "　",
+                    ["SeriesNumberFilter"] = "Filter by Series",
+                    ["AllSeries"] = "All",
+                    ["IssueDate"] = "Issue Date",
+                    ["SeriesNumber"] = "Series",
+                    ["Overview"] = "Description",
+                    ["Prefecture"] = "Prefecture",
+                    ["StockStatus"] = "Stock Status"
                 }
             };
 

@@ -91,6 +91,7 @@ namespace ManholeCardManager
             LanguageLabelBlock.Text = locService.GetString("Language");
             LoadingTip.Title = locService.GetString("Processing");
             SeriesNumberFilterComboBox.PlaceholderText = locService.GetString("SeriesNumberFilter");
+            DistributionLocationsLabel.Text = locService.GetString("DistributionLocations");
         }
 
         /// <summary>
