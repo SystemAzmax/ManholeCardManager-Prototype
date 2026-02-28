@@ -1,0 +1,12 @@
+<Project>
+  <PropertyGroup>
+    <!-- NETSDK1083 エラーを警告に変更して抑制 -->
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);NETSDK1083</WarningsNotAsErrors>
+    <SuppressNETSDK1214>true</SuppressNETSDK1214>
+  </PropertyGroup>
+
+  <!-- RuntimeIdentifier の定義を明示的に上書き -->
+  <ItemGroup>
+    <RuntimeIdentifierGraph Include="$(RuntimeIdentifierGraphPath)" />
+  </ItemGroup>
+</Project>
