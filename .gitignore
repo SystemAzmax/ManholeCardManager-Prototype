@@ -377,3 +377,7 @@ FodyWeavers.xsd
 /docs/dustbox/_Phase1_結合テスト.csv
 /docs/dustbox/_Phase1_非機能テスト.csv
 /docs/アイコン表示トラブルシューティング.md
+/.github/workflows
+/GITHUB_ACTIONS_SETUP.md
+/run-tests.sh
+/run-tests.ps1
