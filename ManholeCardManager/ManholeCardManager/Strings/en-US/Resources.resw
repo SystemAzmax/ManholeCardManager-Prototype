@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!-- Microsoft ResX ファイル形式 -->
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata" type="xsd:string" minOccurs="0" />
+          <xsd:element name="mresource" minOccurs="0" maxOccurs="unbounded">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute name="comment" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <!-- Application General -->
+  <mresource name="AppTitle" type="LTEXT">
+    <value>Manhole Card Acquisition Manager</value>
+  </mresource>
+  <mresource name="AppDescription" type="LTEXT">
+    <value>An application to manage your manhole card acquisition status</value>
+  </mresource>
+  <!-- Card Management -->
+  <mresource name="CardSearch" type="LTEXT">
+    <value>Card Search</value>
+  </mresource>
+  <mresource name="SearchPlaceholder" type="LTEXT">
+    <value>Search by card name...</value>
+  </mresource>
+  <mresource name="Category" type="LTEXT">
+    <value>Category</value>
+  </mresource>
+  <mresource name="AcquisitionCount" type="LTEXT">
+    <value>Acquired Cards:</value>
+  </mresource>
+  <mresource name="AddNewCard" type="LTEXT">
+    <value>Add New</value>
+  </mresource>
+  <mresource name="DeleteButton" type="LTEXT">
+    <value>Delete</value>
+  </mresource>
+  <mresource name="DeleteConfirmationTitle" type="LTEXT">
+    <value>Delete Confirmation</value>
+  </mresource>
+  <mresource name="DeleteConfirmationMessage" type="LTEXT">
+    <value>Are you sure you want to delete "{0}"?</value>
+  </mresource>
+  <mresource name="DeleteConfirm" type="LTEXT">
+    <value>Delete</value>
+  </mresource>
+  <mresource name="Cancel" type="LTEXT">
+    <value>Cancel</value>
+  </mresource>
+  <!-- Language Settings -->
+  <mresource name="Language" type="LTEXT">
+    <value>Language</value>
+  </mresource>
+  <mresource name="SelectLanguage" type="LTEXT">
+    <value>Select Language</value>
+  </mresource>
+  <mresource name="Settings" type="LTEXT">
+    <value>Settings</value>
+  </mresource>
+  <!-- New Card -->
+  <mresource name="NewCard" type="LTEXT">
+    <value>New Card</value>
+  </mresource>
+  <mresource name="CardDescription" type="LTEXT">
+    <value>Enter a description</value>
+  </mresource>
+  <!-- Loading -->
+  <mresource name="Processing" type="LTEXT">
+    <value>Processing...</value>
+  </mresource>
+  <!-- Distribution Locations -->
+  <mresource name="DistributionLocations" type="LTEXT">
+    <value>Distribution Locations</value>
+  </mresource>
+  <mresource name="DistributedCards" type="LTEXT">
+    <value>Distributed Cards:</value>
+  </mresource>
+  <mresource name="AcquisitionStatus" type="LTEXT">
+    <value>Acquisition Status</value>
+  </mresource>
+  <mresource name="Acquired" type="LTEXT">
+    <value>◯</value>
+  </mresource>
+  <mresource name="NotAcquired" type="LTEXT">
+    <value>　</value>
+  </mresource>
+  <!-- Card Detail Information -->
+  <mresource name="SeriesNumber" type="LTEXT">
+    <value>Series</value>
+  </mresource>
+  <mresource name="Overview" type="LTEXT">
+    <value>Overview</value>
+  </mresource>
+  <mresource name="Prefecture" type="LTEXT">
+    <value>Prefecture</value>
+  </mresource>
+  <mresource name="StockStatus" type="LTEXT">
+    <value>Stock Status</value>
+  </mresource>
+  <mresource name="SeriesNumberFilter" type="LTEXT">
+    <value>Filter by Series</value>
+  </mresource>
+  <mresource name="AllSeries" type="LTEXT">
+    <value>All</value>
+  </mresource>
+</root>

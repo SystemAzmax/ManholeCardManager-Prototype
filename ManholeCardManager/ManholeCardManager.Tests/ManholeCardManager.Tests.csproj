@@ -1,0 +1,38 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+    <PackageReference Include="Moq" Version="4.20.72" />
+    <PackageReference Include="FluentAssertions" Version="6.12.2" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.11" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.0" />
+    <PackageReference Include="System.ComponentModel" Version="4.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <!-- テスト対象のソースファイルをリンク（WinUI依存を除外） -->
+  <ItemGroup>
+    <Compile Include="..\ManholeCardManager\Services\SimpleFileLogger.cs" Link="Services\SimpleFileLogger.cs" />
+    <Compile Include="..\ManholeCardManager\Services\FileLoggerProvider.cs" Link="Services\FileLoggerProvider.cs" />
+    <Compile Include="..\ManholeCardManager\Models\ManholeCard.cs" Link="Models\ManholeCard.cs" />
+    <Compile Include="..\ManholeCardManager\Models\ManholeLocation.cs" Link="Models\ManholeLocation.cs" />
+    <Compile Include="..\ManholeCardManager\Models\CardLocation.cs" Link="Models\CardLocation.cs" />
+    <Compile Include="..\ManholeCardManager\Models\AcquisitionHistory.cs" Link="Models\AcquisitionHistory.cs" />
+    <Compile Include="..\ManholeCardManager\Models\CardWithAcquisitionStatus.cs" Link="Models\CardWithAcquisitionStatus.cs" />
+    <Compile Include="..\ManholeCardManager\Models\DistributionLocationWithCards.cs" Link="Models\DistributionLocationWithCards.cs" />
+  </ItemGroup>
+
+</Project>
